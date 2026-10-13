@@ -1085,12 +1085,14 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
       );
     }
     final query = equipmentSearch.toLowerCase();
-    final items = equipment.where(
-      (e) =>
-          '${e.name} ${e.inventoryNumber ?? ''} ${e.type ?? ''} ${equipmentDetails(e)}'
-              .toLowerCase()
-              .contains(query),
-    );
+    final items = equipment
+        .where(
+          (e) =>
+              '${e.name} ${e.inventoryNumber ?? ''} ${e.type ?? ''} ${equipmentDetails(e)}'
+                  .toLowerCase()
+                  .contains(query),
+        )
+        .toList();
     return _OrderFormSection(
       title: 'Оборудование',
       icon: Icons.precision_manufacturing_outlined,
@@ -1107,26 +1109,45 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
           const SizedBox(height: 12),
           if (items.isEmpty)
             Text(backendText(context, 'Ничего не найдено', 'Ештеңе табылмады')),
-          for (final item in items)
-            ListTile(
-              key: ValueKey('equipment-${item.id}'),
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(
-                Icons.precision_manufacturing_outlined,
-                color: brand,
+          if (items.isNotEmpty)
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 320),
+              child: Material(
+                shape: RoundedRectangleBorder(
+                  side: BorderSide(color: Theme.of(context).dividerColor),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  itemCount: items.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final item = items[index];
+                    return ListTile(
+                      key: ValueKey('equipment-${item.id}'),
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(
+                        Icons.precision_manufacturing_outlined,
+                        color: brand,
+                      ),
+                      title: Text(
+                        uiText(context, item.name),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Text(equipmentDetails(item)),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: creating || voiceBusy
+                          ? null
+                          : () {
+                              changeEquipment(item.id);
+                              focusDescription();
+                            },
+                    );
+                  },
+                ),
               ),
-              title: Text(
-                uiText(context, item.name),
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              subtitle: Text(equipmentDetails(item)),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: creating || voiceBusy
-                  ? null
-                  : () {
-                      changeEquipment(item.id);
-                      focusDescription();
-                    },
             ),
         ],
       ),

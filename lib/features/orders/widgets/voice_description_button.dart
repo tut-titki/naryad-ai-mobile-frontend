@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -32,6 +33,48 @@ Uint8List voiceWav(Uint8List pcm) {
   return result;
 }
 
+/// The server's WAF rejects multipart parts whose `content-type` header comes
+/// before `content-disposition` (the order package:http emits) and replies
+/// HTTP 200 with an HTML error page. Reorder the part headers, same length.
+class _VoiceUploadRequest extends http.MultipartRequest {
+  _VoiceUploadRequest(super.method, super.url);
+
+  @override
+  http.ByteStream finalize() {
+    final stream = super.finalize();
+    return http.ByteStream(
+      Stream.fromFuture(
+        stream.toBytes().then((bytes) {
+          final end = _indexOfHeaderEnd(bytes);
+          if (end < 0) return bytes;
+          final lines = latin1.decode(bytes.sublist(0, end)).split('\r\n');
+          // lines[0] is the boundary delimiter.
+          final headers = lines.sublist(1)
+            ..sort((a, b) {
+              int rank(String h) =>
+                  h.toLowerCase().startsWith('content-disposition') ? 0 : 1;
+              return rank(a).compareTo(rank(b));
+            });
+          final head = latin1.encode([lines.first, ...headers].join('\r\n'));
+          return Uint8List.fromList([...head, ...bytes.sublist(end)]);
+        }),
+      ),
+    );
+  }
+
+  static int _indexOfHeaderEnd(Uint8List bytes) {
+    for (var i = 0; i + 3 < bytes.length; i++) {
+      if (bytes[i] == 13 &&
+          bytes[i + 1] == 10 &&
+          bytes[i + 2] == 13 &&
+          bytes[i + 3] == 10) {
+        return i;
+      }
+    }
+    return -1;
+  }
+}
+
 Future<String> transcribeVoice(ApiServices api, Uint8List audio) async {
   if (audio.length > 25 * 1024 * 1024) {
     throw const ApiException(
@@ -40,10 +83,7 @@ Future<String> transcribeVoice(ApiServices api, Uint8List audio) async {
     );
   }
   final request =
-      http.MultipartRequest(
-          'POST',
-          Uri.parse('${api.baseUrl}/api/ai/transcribe'),
-        )
+      _VoiceUploadRequest('POST', Uri.parse('${api.baseUrl}/api/ai/transcribe'))
         // POST 303 redirects switch to GET and lose the recorded audio.
         // The documented API must return a transcript at this exact endpoint.
         ..followRedirects = false

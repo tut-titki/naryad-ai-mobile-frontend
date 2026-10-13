@@ -15,6 +15,7 @@ import 'executor_api.dart';
 import 'executor_repository.dart';
 import 'execution_draft_storage.dart';
 import '../models/executor_order_actions.dart';
+import 'package:crypto/crypto.dart';
 
 class ApiExecutorRepository extends ChangeNotifier
     implements ExecutorRepository {
@@ -40,6 +41,25 @@ class ApiExecutorRepository extends ChangeNotifier
   final _notification = <Map<String, dynamic>>[];
   int _notificationRevision = 0;
   Future<void>? _notificationLoading;
+  final _orderVersion = <int, int>{};
+  int _nextOrderVersion(int id) {
+    final version = (_orderVersion[id] ?? 0) + 1;
+    _orderVersion[id] = version;
+    return version;
+  }
+
+  bool _isOrderLoadCurrent(int id, int version) =>
+      _sessionActive && _orderVersion[id] == version;
+
+  WorkOrder _latestOrder(int employeeId, WorkOrder original) {
+    if (!_sessionActive) {
+      throw const ApiException(401, 'Сессия завершена');
+    }
+    final id = original.apiId;
+    final current = _active[id] ?? _history[id] ?? original;
+    _checkOrder(employeeId, current);
+    return current;
+  }
 
   List<Map<String, dynamic>> get notifications =>
       List.unmodifiable(_notification);
@@ -251,6 +271,7 @@ class ApiExecutorRepository extends ChangeNotifier
   }
 
   void _removeUnavailable(WorkOrder order, ApiException error) {
+    _nextOrderVersion(order.apiId!);
     order.accessErrorStatus = error.status;
     order.accessErrorMessage = error.message;
     _active.remove(order.apiId);
@@ -313,6 +334,52 @@ class ApiExecutorRepository extends ChangeNotifier
     _notify();
     return rating;
   }
+
+  Future<void> _draftOperations = Future.value();
+
+  Future<T> _withDraftLock<T>(Future<T> Function() operation) {
+    final result = _draftOperations.then((_) => operation());
+    _draftOperations = result.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return result;
+  }
+
+  String _reportVersion(ExecutionDraft report) {
+    final materialName = report.materials.keys.toList()..sort();
+    final content = {
+      'work': report.work,
+      'faultCode': report.faultCode,
+      'comment': report.comment,
+      'legacyMaterials': report.legacyMaterials,
+      'materials': [
+        for (final name in materialName) [name, report.materials[name]],
+      ],
+      'photos': [
+        for (final photo in report.photos)
+          {'name': photo.name, 'hash': sha256.convert(photo.bytes)},
+      ],
+    };
+    return sha256.convert(utf8.encode(jsonEncode(content))).toString();
+  }
+
+  Future<void> _clearSubmittedDraft(
+    int employeeId,
+    int orderNumber,
+    String? submittedVersion,
+  ) => _withDraftLock(() async {
+    if (submittedVersion == null) return;
+    final key = (employeeId, orderNumber);
+    final current =
+        _drafts[key] ?? await draftStorage.load(employeeId, orderNumber);
+    if (current == null || _reportVersion(current) != submittedVersion) {
+      return;
+    }
+
+    await draftStorage.remove(employeeId, orderNumber);
+    _drafts.remove(key);
+  });
 
   @override
   List<WorkOrder> assignedTo(int employeeId) => [
@@ -524,6 +591,7 @@ class ApiExecutorRepository extends ChangeNotifier
       OrderStatus.rejected,
     }.contains(order.status);
     (archived ? _history : _active)[dto.id] = order;
+    _nextOrderVersion(dto.id);
     return order;
   }
 
@@ -543,11 +611,16 @@ class ApiExecutorRepository extends ChangeNotifier
   }
 
   Future<WorkOrder> _loadOrderTime(int employeeId, WorkOrder order) async {
+    _checkOrder(employeeId, order);
+    final id = order.apiId!;
+    final version = _nextOrderVersion(id);
     try {
-      final dto = await api.loadOrder(order.apiId!);
-      _checkUser(employeeId);
+      final dto = await api.loadOrder(id);
+      if (!_isOrderLoadCurrent(id, version)) {
+        return _latestOrder(employeeId, order);
+      }
       if (dto.assigneeId != employeeId) {
-        throw const ApiException(403, 'Недостаточно прав');
+        throw const ApiException(403, "Недостаточно прав");
       }
       if (dto.details['events'] is! List) {
         throw const FormatException('Order events missing');
@@ -555,8 +628,12 @@ class ApiExecutorRepository extends ChangeNotifier
       final result = _store(dto, existing: order);
       _notify();
       return result;
-    } on ApiException catch (error) {
-      if (error.status == 403 || error.status == 404) {
+    } catch (error) {
+      if (!_isOrderLoadCurrent(id, version)) {
+        return _latestOrder(employeeId, order);
+      }
+      if (error is ApiException &&
+          (error.status == 403 || error.status == 404)) {
         _removeUnavailable(order, error);
       }
       rethrow;
@@ -566,51 +643,106 @@ class ApiExecutorRepository extends ChangeNotifier
   @override
   Future<WorkOrder> loadExecutorOrder(int employeeId, WorkOrder order) async {
     _checkOrder(employeeId, order);
+
+    final id = order.apiId!;
+    final version = _nextOrderVersion(id);
     var loadingMetadata = true;
-    try {
-      var dto = await api.loadOrder(order.apiId!);
-      if (dto.assigneeId != employeeId) {
-        throw const ApiException(403, 'Недостаточно прав');
-      }
-      loadingMetadata = false;
-      Future<List<OrderPhoto>> photos(
-        ExecutorOrderDto dto,
-        String type,
-      ) async => Future.wait(
+
+    Future<List<OrderPhoto>> photos(ExecutorOrderDto dto, String type) async {
+      return Future.wait(
         ((dto.details['photos'] as List?) ?? [])
-            .where((p) => p['type'] == type)
-            .map((p) async {
-              final url = p['fileUrl'] as String;
-              final photo = OrderPhoto(
+            .where((photo) => photo['type'] == type)
+            .map((photo) async {
+              final url = photo['fileUrl'] as String;
+              final image = OrderPhoto(
                 name: Uri.parse(url).path.split('/').last,
                 bytes: await api.session.downloadPhoto(url),
               );
-              if (type == 'AFTER') _uploaded[photo] = url;
-              return photo;
+
+              if (type == 'AFTER' && _isOrderLoadCurrent(id, version)) {
+                _uploaded[image] = url;
+              }
+
+              return image;
             }),
       );
-      List<OrderPhoto> before, after;
+    }
+
+    try {
+      var dto = await api.loadOrder(id);
+
+      if (!_isOrderLoadCurrent(id, version)) {
+        return _latestOrder(employeeId, order);
+      }
+
+      if (dto.assigneeId != employeeId) {
+        throw const ApiException(403, 'Недостаточно прав');
+      }
+
+      loadingMetadata = false;
+
+      List<OrderPhoto> before;
+      List<OrderPhoto> after;
+
       try {
         before = await photos(dto, 'BEFORE');
+
+        if (!_isOrderLoadCurrent(id, version)) {
+          return _latestOrder(employeeId, order);
+        }
+
         after = await photos(dto, 'AFTER');
-      } on ApiException catch (e) {
-        if (e.status != 401 && e.status != 403) rethrow;
+      } on ApiException catch (error) {
+        if (!_isOrderLoadCurrent(id, version)) {
+          return _latestOrder(employeeId, order);
+        }
+
+        if (error.status != 401 && error.status != 403) {
+          rethrow;
+        }
+
+        // Обновляем подписанные ссылки на фотографии.
         loadingMetadata = true;
-        dto = await api.loadOrder(order.apiId!);
+        dto = await api.loadOrder(id);
+
+        if (!_isOrderLoadCurrent(id, version)) {
+          return _latestOrder(employeeId, order);
+        }
+
         if (dto.assigneeId != employeeId) {
           throw const ApiException(403, 'Недостаточно прав');
         }
+
         loadingMetadata = false;
         before = await photos(dto, 'BEFORE');
+
+        if (!_isOrderLoadCurrent(id, version)) {
+          return _latestOrder(employeeId, order);
+        }
+
         after = await photos(dto, 'AFTER');
       }
+
+      // За время скачивания фото статус мог уже измениться.
+      if (!_isOrderLoadCurrent(id, version)) {
+        return _latestOrder(employeeId, order);
+      }
+
       final result = _store(dto, existing: order, before: before, after: after);
+
       _notify();
       return result;
-    } on ApiException catch (e) {
-      if (loadingMetadata && (e.status == 403 || e.status == 404)) {
-        _removeUnavailable(order, e);
+    } catch (error) {
+      if (!_isOrderLoadCurrent(id, version)) {
+        return _latestOrder(employeeId, order);
       }
+
+      if (loadingMetadata &&
+          error is ApiException &&
+          (error.status == 403 || error.status == 404)) {
+        _removeUnavailable(order, error);
+      }
+
       rethrow;
     }
   }
@@ -626,6 +758,19 @@ class ApiExecutorRepository extends ChangeNotifier
       (a) =>
           a.orderNumber == order.apiId && a.payload['action'] == body['action'],
     );
+    final existing = same.firstOrNull;
+    if (body['action'] == 'COMPLETE' &&
+        existing != null &&
+        existing.payload['_reportVersion'] != body['_reportVersion']) {
+      throw ApiException(
+        409,
+        _user.language == 'kk'
+            ? 'Алдыңғы есеп жіберуді күтіп тұр. '
+                  'Жаңа түзетулеріңіз нобайда сақталды.'
+            : 'Предыдущий отчёт ожидает подтверждения отправки. '
+                  'Ваши новые правки сохранены в черновике.',
+      );
+    }
     final action =
         same.firstOrNull ??
         PendingAction(
@@ -660,6 +805,7 @@ class ApiExecutorRepository extends ChangeNotifier
         throw StateError('Unsupported queued action');
       }
       final body = Map<String, dynamic>.from(action.payload);
+      final submittedVersion = body.remove('_reportVersion') as String?;
       try {
         final photos = body.remove('_localPhotos') as List?;
         if (photos != null) {
@@ -687,8 +833,14 @@ class ApiExecutorRepository extends ChangeNotifier
         await actionStorage.remove(action.id);
         if (body['action'] == 'COMPLETE') {
           try {
-            await clearExecutionDraft(action.employeeId, order.number);
-          } catch (_) {}
+            await _clearSubmittedDraft(
+              action.employeeId,
+              order.number,
+              submittedVersion,
+            );
+          } catch (_) {
+            // Более новый черновик должен остаться сохранённым
+          }
         }
       } on ApiException catch (e) {
         if ({400, 403, 404, 409}.contains(e.status)) {
@@ -839,9 +991,12 @@ class ApiExecutorRepository extends ChangeNotifier
     for (final photo in report.photos) {
       validatePhotoSize(photo.bytes.length);
     }
+    final submittedVersion = _reportVersion(report);
+
     await saveExecutionDraft(employeeId, order.number, report);
     await _send(employeeId, order, {
       'action': 'COMPLETE',
+      '_reportVersion': submittedVersion,
       'completionText': report.work.trim(),
       'faultCodeId': fault,
       'afterPhotoUrls': <String>[],
@@ -863,9 +1018,9 @@ class ApiExecutorRepository extends ChangeNotifier
     order.afterPhotos = report.photos.length;
     // A cleanup failure must never turn an acknowledged COMPLETE into a second submission.
     try {
-      await clearExecutionDraft(employeeId, order.number);
+      await _clearSubmittedDraft(employeeId, order.number, submittedVersion);
     } catch (_) {
-      _drafts.remove((employeeId, order.number));
+      // Сервер подтвердил отправку. Ошибка очистки не отменяет её.
     }
     _notify();
   }
@@ -877,31 +1032,35 @@ class ApiExecutorRepository extends ChangeNotifier
   Future<ExecutionDraft?> restoreExecutionDraft(
     int employeeId,
     int orderNumber,
-  ) async {
+  ) => _withDraftLock(() async {
     _checkUser(employeeId);
     final draft =
         executionDraft(employeeId, orderNumber) ??
         await draftStorage.load(employeeId, orderNumber);
-    if (draft != null) _drafts[(employeeId, orderNumber)] = draft;
+
+    if (draft != null) {
+      _drafts[(employeeId, orderNumber)] = draft;
+    }
     return draft;
-  }
+  });
 
   @override
   Future<void> saveExecutionDraft(
     int employeeId,
     int orderNumber,
     ExecutionDraft draft,
-  ) async {
+  ) => _withDraftLock(() async {
     _checkUser(employeeId);
+
     await draftStorage.save(employeeId, orderNumber, draft);
     _drafts[(employeeId, orderNumber)] = draft;
-  }
-
+  });
   @override
-  Future<void> clearExecutionDraft(int employeeId, int orderNumber) async {
-    await draftStorage.remove(employeeId, orderNumber);
-    _drafts.remove((employeeId, orderNumber));
-  }
+  Future<void> clearExecutionDraft(int employeeId, int orderNumber) =>
+      _withDraftLock(() async {
+        await draftStorage.remove(employeeId, orderNumber);
+        _drafts.remove((employeeId, orderNumber));
+      });
 
   @override
   void dispose() {

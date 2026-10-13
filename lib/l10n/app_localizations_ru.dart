@@ -1806,7 +1806,13 @@ class AppLocalizationsRu extends AppLocalizations {
   String get pinUnlockHint => 'Введите 4 цифры, чтобы открыть приложение';
 
   @override
-  String get pinMismatch => 'ПИН-коды не совпадают. Создайте код заново';
+  String get pinMismatch => 'ПИН-коды не совпадают. Повторите ввод';
+
+  @override
+  String get pinConfirmHint => 'Введите придуманный ПИН-код ещё раз';
+
+  @override
+  String get pinChange => 'Изменить код';
 
   @override
   String get pinIncorrect => 'Неверный ПИН-код';

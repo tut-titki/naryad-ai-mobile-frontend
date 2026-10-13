@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
+import 'auth_preferences_storage.dart';
+
 abstract interface class TokenStorage {
   Future<String?> read();
   Future<void> write(String token);
@@ -119,17 +121,27 @@ class AuthSession extends ChangeNotifier {
   AuthSession({
     http.Client? client,
     TokenStorage? storage,
+    AuthPreferencesStorage? preferencesStorage,
     this.baseUrl = 'https://hackaton.fenixkst.kz',
   }) : _client = client ?? http.Client(),
        _storage =
-           storage ?? (kIsWeb ? MemoryTokenStorage() : SecureTokenStorage());
+           storage ?? (kIsWeb ? MemoryTokenStorage() : SecureTokenStorage()),
+       preferencesStorage =
+           preferencesStorage ??
+           (kIsWeb || (storage != null && storage is! SecureTokenStorage)
+               ? MemoryAuthPreferencesStorage()
+               : SecureAuthPreferencesStorage(scope: baseUrl));
   final http.Client _client;
   final TokenStorage _storage;
+  final AuthPreferencesStorage preferencesStorage;
   final String baseUrl;
   String? _token;
   AuthUser? user;
   String? pushToken;
   DateTime? blockedUntil;
+  String? lastPhone;
+  bool _authenticatedWithPassword = false;
+  int _passwordLoginRevision = 0;
   int _generation = 0;
   Future<void> _storagePending = Future.value();
 
@@ -149,6 +161,18 @@ class AuthSession extends ChangeNotifier {
   String? get accessToken => _token;
   bool get authenticated => _token != null && user != null;
   String? get token => _token;
+  bool get authenticatedWithPassword => _authenticatedWithPassword;
+  int get passwordLoginRevision => _passwordLoginRevision;
+
+  Future<String?> loadLastPhone() async {
+    if (lastPhone != null) return lastPhone;
+    try {
+      final phone = await _store(preferencesStorage.readPhone);
+      return lastPhone ??= phone;
+    } catch (_) {
+      return lastPhone;
+    }
+  }
 
   Future<Object?> _requestJson(
     String method,
@@ -344,7 +368,20 @@ class AuthSession extends ChangeNotifier {
       if (fullUser.mobileRoute == null) throw const ApiException(403, '');
       await _store(() => _storage.write(token));
       _checkGeneration(generation);
+      final rememberedPhone = fullUser.phone?.trim();
+      final savedPhone = rememberedPhone == null || rememberedPhone.isEmpty
+          ? phone.trim()
+          : rememberedPhone;
+      lastPhone = savedPhone;
+      try {
+        await _store(() => preferencesStorage.writePhone(savedPhone));
+      } catch (_) {
+        // Remembering the phone must not prevent a successful login.
+      }
+      _checkGeneration(generation);
       user = fullUser;
+      _authenticatedWithPassword = true;
+      _passwordLoginRevision++;
       blockedUntil = null;
       notifyListeners();
       return fullUser;
@@ -352,6 +389,7 @@ class AuthSession extends ChangeNotifier {
       if (generation == _generation) {
         _token = null;
         user = null;
+        _authenticatedWithPassword = false;
       }
       rethrow;
     }
@@ -359,6 +397,7 @@ class AuthSession extends ChangeNotifier {
 
   Future<AuthUser?> restore() async {
     final generation = ++_generation;
+    _authenticatedWithPassword = false;
     final token = await _store(_storage.read);
     if (generation != _generation) return null;
     _token = token;
@@ -464,6 +503,7 @@ class AuthSession extends ChangeNotifier {
     _generation++;
     _token = null;
     user = null;
+    _authenticatedWithPassword = false;
     pushToken = null;
     try {
       await _store(_storage.delete);

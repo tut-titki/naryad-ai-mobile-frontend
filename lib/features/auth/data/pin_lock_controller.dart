@@ -35,7 +35,10 @@ class PinLockController extends ChangeNotifier {
   DateTime? lockedUntil;
   String? _account;
   String? _token;
-  String? _resetAfterLogin;
+  int _passwordLoginRevision = 0;
+  bool _authenticatedWithPassword = false;
+  bool _allowPasswordUnlock = false;
+  bool _passwordResetAllowed = false;
   int _generation = 0;
   bool _disposed = false;
 
@@ -47,10 +50,19 @@ class PinLockController extends ChangeNotifier {
     final account = session.authenticated && user != null
         ? '${session.baseUrl}|${user.id}'
         : null;
-    if (account == _account && session.accessToken == _token) return;
+    if (account == _account &&
+        session.accessToken == _token &&
+        session.passwordLoginRevision == _passwordLoginRevision &&
+        session.authenticatedWithPassword == _authenticatedWithPassword) {
+      return;
+    }
     _account = account;
     _token = session.accessToken;
+    _passwordLoginRevision = session.passwordLoginRevision;
+    _authenticatedWithPassword = session.authenticatedWithPassword;
     if (account == null) {
+      _allowPasswordUnlock = false;
+      _passwordResetAllowed = false;
       _generation++;
       status = PinLockStatus.signedOut;
       busy = false;
@@ -58,11 +70,13 @@ class PinLockController extends ChangeNotifier {
       lockedUntil = null;
       notifyListeners();
     } else {
-      unawaited(_prepare(reset: _resetAfterLogin == account));
+      _allowPasswordUnlock = session.authenticatedWithPassword;
+      _passwordResetAllowed = session.authenticatedWithPassword;
+      unawaited(_prepare());
     }
   }
 
-  Future<void> _prepare({bool reset = false}) async {
+  Future<void> _prepare() async {
     final account = _account;
     if (!enabled || account == null || _disposed) return;
     final generation = ++_generation;
@@ -73,14 +87,26 @@ class PinLockController extends ChangeNotifier {
     notifyListeners();
     try {
       // A reset is permitted only after a successful password login.
-      if (reset) {
-        await repository.delete(account);
-        _resetAfterLogin = null;
+      if (_passwordResetAllowed) {
+        final resetAccount = await session.preferencesStorage
+            .readPinResetAccount();
+        if (!_current(generation)) return;
+        if (resetAccount == account) {
+          await repository.delete(account);
+          if (!_current(generation)) return;
+          await session.preferencesStorage.writePinResetAccount(null);
+          if (!_current(generation)) return;
+        }
+        _passwordResetAllowed = false;
       }
       final record = await repository.read(account);
       if (!_current(generation)) return;
-      status = record == null ? PinLockStatus.create : PinLockStatus.unlock;
-      lockedUntil = record?.lockedUntil;
+      status = record == null
+          ? PinLockStatus.create
+          : _allowPasswordUnlock
+          ? PinLockStatus.unlocked
+          : PinLockStatus.unlock;
+      lockedUntil = status == PinLockStatus.unlock ? record?.lockedUntil : null;
     } catch (_) {
       if (!_current(generation)) return;
       status = PinLockStatus.storageError;
@@ -91,7 +117,10 @@ class PinLockController extends ChangeNotifier {
   bool _current(int generation) => !_disposed && generation == _generation;
 
   void lock() {
-    if (enabled && session.authenticated) unawaited(_prepare());
+    if (enabled && session.authenticated) {
+      _allowPasswordUnlock = false;
+      unawaited(_prepare());
+    }
   }
 
   Future<void> retry() => _prepare();
@@ -133,11 +162,38 @@ class PinLockController extends ChangeNotifier {
     return success && _current(generation);
   }
 
-  Future<void> forgotPin() async {
+  Future<void> forgotPin() => _leaveAccount(reset: true);
+
+  Future<void> useAnotherAccount() => _leaveAccount(reset: false);
+
+  Future<void> _leaveAccount({required bool reset}) async {
     if (busy || _account == null) return;
-    _resetAfterLogin = _account;
+    final account = _account!;
+    final token = session.accessToken;
+    final loginRevision = session.passwordLoginRevision;
+    _generation++;
+    _allowPasswordUnlock = false;
+    _passwordResetAllowed = false;
     busy = true;
     notifyListeners();
+    if (reset) {
+      try {
+        await session.preferencesStorage.writePinResetAccount(account);
+      } catch (_) {
+        if (!_disposed && _account == account) {
+          busy = false;
+          status = PinLockStatus.storageError;
+          notifyListeners();
+        }
+        return;
+      }
+    }
+    if (_disposed ||
+        _account != account ||
+        session.accessToken != token ||
+        session.passwordLoginRevision != loginRevision) {
+      return;
+    }
     try {
       await session.logout();
     } catch (_) {

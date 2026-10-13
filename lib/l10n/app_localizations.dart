@@ -3383,8 +3383,20 @@ abstract class AppLocalizations {
   /// No description provided for @pinMismatch.
   ///
   /// In ru, this message translates to:
-  /// **'ПИН-коды не совпадают. Создайте код заново'**
+  /// **'ПИН-коды не совпадают. Повторите ввод'**
   String get pinMismatch;
+
+  /// No description provided for @pinConfirmHint.
+  ///
+  /// In ru, this message translates to:
+  /// **'Введите придуманный ПИН-код ещё раз'**
+  String get pinConfirmHint;
+
+  /// No description provided for @pinChange.
+  ///
+  /// In ru, this message translates to:
+  /// **'Изменить код'**
+  String get pinChange;
 
   /// No description provided for @pinIncorrect.
   ///

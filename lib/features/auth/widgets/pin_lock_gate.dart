@@ -6,9 +6,17 @@ import '../screens/pin_lock_screen.dart';
 /// Sits above the entire Navigator, including dialogs and notification routes.
 /// Keeps the current form alive while the application is locked.
 class PinLockGate extends StatefulWidget {
-  const PinLockGate({super.key, required this.controller, required this.child});
+  const PinLockGate({
+    super.key,
+    required this.controller,
+    required this.child,
+    this.lockDelay = const Duration(seconds: 60),
+    this.now,
+  });
   final PinLockController controller;
   final Widget child;
+  final Duration lockDelay;
+  final DateTime Function()? now;
 
   @override
   State<PinLockGate> createState() => _PinLockGateState();
@@ -16,6 +24,9 @@ class PinLockGate extends StatefulWidget {
 
 class _PinLockGateState extends State<PinLockGate> with WidgetsBindingObserver {
   bool _obscured = false;
+  DateTime? _backgroundedAt;
+
+  DateTime get _now => (widget.now ?? DateTime.now)();
 
   @override
   void initState() {
@@ -27,10 +38,18 @@ class _PinLockGateState extends State<PinLockGate> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
-      widget.controller.lock();
+      _backgroundedAt ??= _now;
+    } else if (state == AppLifecycleState.resumed) {
+      final elapsed = _backgroundedAt == null
+          ? null
+          : _now.difference(_backgroundedAt!);
+      if (elapsed != null &&
+          (elapsed.isNegative || elapsed >= widget.lockDelay)) {
+        widget.controller.lock();
+      }
+      _backgroundedAt = null;
     }
-    // Inactive also covers permission sheets; mask the app without forcing a
-    // new PIN just for a transient system dialog.
+    // Always hide private content; a short camera visit keeps the session open.
     setState(() => _obscured = state != AppLifecycleState.resumed);
   }
 

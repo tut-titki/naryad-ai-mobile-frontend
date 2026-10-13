@@ -96,7 +96,10 @@ Future<String> transcribeVoice(ApiServices api, Uint8List audio) async {
           ),
         );
   try {
-    final response = await api.client.sendMultipart(request);
+    final response = await api.client.sendMultipart(
+      request,
+      timeout: const Duration(seconds: 270),
+    );
     return readVoiceTranscript(response, requestUri: request.url);
   } on ApiException catch (error) {
     if ({301, 302, 303, 307, 308}.contains(error.statusCode)) {

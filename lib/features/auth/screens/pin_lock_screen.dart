@@ -65,7 +65,6 @@ class _PinLockScreenState extends State<PinLockScreen> {
         setState(() {
           _mismatch = true;
           _digits = '';
-          _firstPin = null;
         });
         return;
       }
@@ -96,7 +95,7 @@ class _PinLockScreenState extends State<PinLockScreen> {
         : controller.incorrect
         ? s.pinIncorrect
         : creating
-        ? s.pinCreateHint
+        ? (_firstPin == null ? s.pinCreateHint : s.pinConfirmHint)
         : s.pinUnlockHint;
 
     return Scaffold(
@@ -241,9 +240,25 @@ class _PinLockScreenState extends State<PinLockScreen> {
                         ),
                       ),
                   const SizedBox(height: 16),
+                  if (creating && _firstPin != null)
+                    TextButton(
+                      key: const ValueKey('pin-change'),
+                      onPressed: !enabled
+                          ? null
+                          : () => setState(() {
+                              _firstPin = null;
+                              _digits = '';
+                              _mismatch = false;
+                            }),
+                      child: Text(s.pinChange),
+                    ),
                   TextButton(
                     key: const ValueKey('pin-forgot'),
-                    onPressed: controller.busy ? null : controller.forgotPin,
+                    onPressed: controller.busy
+                        ? null
+                        : creating
+                        ? controller.useAnotherAccount
+                        : controller.forgotPin,
                     child: Text(
                       creating ? s.pinUseAnotherAccount : s.pinForgot,
                     ),

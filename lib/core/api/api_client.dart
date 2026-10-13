@@ -90,42 +90,50 @@ class ApiClient {
     Map<String, dynamic>? queryParameters,
     Map<String, String>? headers,
     bool authenticated = true,
+    Duration timeout = const Duration(seconds: 30),
   }) async {
-    final uri = _buildUri(path, queryParameters: queryParameters);
     final requestToken = authenticated ? _accessToken : null;
-
-    final response = await _httpClient.get(
-      uri,
-      headers: _buildHeaders(headers: headers, authenticated: authenticated),
-    );
-
+    final response = await _httpClient
+        .get(
+          _buildUri(path, queryParameters: queryParameters),
+          headers: _buildHeaders(
+            headers: headers,
+            authenticated: authenticated,
+          ),
+        )
+        .timeout(timeout);
     return _handleResponse(response, requestToken: requestToken);
   }
 
   // MARK: POST
 
   Future<ApiResponse<dynamic>> sendMultipart(
-    http.MultipartRequest request,
-  ) async {
+    http.MultipartRequest request, {
+    Duration timeout = const Duration(seconds: 60),
+  }) async {
     final requestToken = _accessToken;
     request.headers.addAll(
       _buildHeaders(authenticated: true)..remove('Content-Type'),
     );
-    return _handleResponse(
-      await http.Response.fromStream(await _httpClient.send(request)),
-      requestToken: requestToken,
-    );
+    final response = await _httpClient
+        .send(request)
+        .then(http.Response.fromStream)
+        .timeout(timeout);
+    return _handleResponse(response, requestToken: requestToken);
   }
 
   Future<Uint8List> getBytes(
     String path, {
     Map<String, dynamic>? queryParameters,
+    Duration timeout = const Duration(seconds: 60),
   }) async {
     final requestToken = _accessToken;
-    final response = await _httpClient.get(
-      _buildUri(path, queryParameters: queryParameters),
-      headers: _buildHeaders(authenticated: true),
-    );
+    final response = await _httpClient
+        .get(
+          _buildUri(path, queryParameters: queryParameters),
+          headers: _buildHeaders(authenticated: true),
+        )
+        .timeout(timeout);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       _handleResponse(response, requestToken: requestToken);
     }
@@ -165,16 +173,20 @@ class ApiClient {
     Map<String, dynamic>? queryParameters,
     Map<String, String>? headers,
     bool authenticated = true,
+    Duration timeout = const Duration(seconds: 30),
   }) async {
-    final uri = _buildUri(path, queryParameters: queryParameters);
     final requestToken = authenticated ? _accessToken : null;
 
-    final response = await _httpClient.patch(
-      uri,
-      headers: _buildHeaders(headers: headers, authenticated: authenticated),
-      body: body == null ? null : jsonEncode(body),
-    );
-
+    final response = await _httpClient
+        .patch(
+          _buildUri(path, queryParameters: queryParameters),
+          headers: _buildHeaders(
+            headers: headers,
+            authenticated: authenticated,
+          ),
+          body: body == null ? null : jsonEncode(body),
+        )
+        .timeout(timeout);
     return _handleResponse(response, requestToken: requestToken);
   }
 
@@ -186,15 +198,20 @@ class ApiClient {
     Map<String, dynamic>? queryParameters,
     Map<String, String>? headers,
     bool authenticated = true,
+    Duration timeout = const Duration(seconds: 30),
   }) async {
-    final uri = _buildUri(path, queryParameters: queryParameters);
     final requestToken = authenticated ? _accessToken : null;
 
-    final response = await _httpClient.delete(
-      uri,
-      headers: _buildHeaders(headers: headers, authenticated: authenticated),
-      body: body == null ? null : jsonEncode(body),
-    );
+    final response = await _httpClient
+        .delete(
+          _buildUri(path, queryParameters: queryParameters),
+          headers: _buildHeaders(
+            headers: headers,
+            authenticated: authenticated,
+          ),
+          body: body == null ? null : jsonEncode(body),
+        )
+        .timeout(timeout);
 
     return _handleResponse(response, requestToken: requestToken);
   }

@@ -1815,7 +1815,13 @@ class AppLocalizationsKk extends AppLocalizations {
   String get pinUnlockHint => 'Қолданбаны ашу үшін 4 цифрды енгізіңіз';
 
   @override
-  String get pinMismatch => 'ПИН-кодтар сәйкес келмейді. Кодты қайта жасаңыз';
+  String get pinMismatch => 'ПИН-кодтар сәйкес келмейді. Қайта енгізіңіз';
+
+  @override
+  String get pinConfirmHint => 'Ойлап тапқан ПИН-кодты қайта енгізіңіз';
+
+  @override
+  String get pinChange => 'Кодты өзгерту';
 
   @override
   String get pinIncorrect => 'ПИН-код қате';

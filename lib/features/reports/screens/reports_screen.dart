@@ -140,15 +140,16 @@ class ReportsScreenState extends State<ReportsScreen> {
     required Widget child,
     EdgeInsetsGeometry padding = const EdgeInsets.all(16),
   }) {
-    return Container(
-      width: double.infinity,
-      padding: padding,
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _border),
+        side: const BorderSide(color: _border),
       ),
-      child: child,
+      child: SizedBox(
+        width: double.infinity,
+        child: Padding(padding: padding, child: child),
+      ),
     );
   }
 

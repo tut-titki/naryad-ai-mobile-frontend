@@ -1,7 +1,9 @@
 import 'package:mineral/features/references/data/reference_storage_stub.dart';
 import 'package:mineral/features/auth/screens/change_password_screen.dart';
 import 'package:mineral/features/auth/formatters/phone_input_formatter.dart';
+import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -37,6 +39,105 @@ http.Response response(
 );
 
 void main() {
+  for (final path in ['/api/auth/login', '/api/auth/me']) {
+    test('logout cancels login while $path is pending', () async {
+      final storage = MemoryTokenStorage();
+      final started = Completer<void>();
+      final delayed = Completer<http.Response>();
+      final session = AuthSession(
+        storage: storage,
+        client: MockClient((request) async {
+          if (request.url.path == path) {
+            started.complete();
+            return delayed.future;
+          }
+          return response({'token': 'jwt', 'user': profile}, 200);
+        }),
+      );
+      addTearDown(session.dispose);
+      final failure = expectLater(
+        session.login('+77012345678', 'secret12'),
+        throwsA(isA<ApiException>()),
+      );
+      await started.future;
+      await session.logout();
+      delayed.complete(
+        response(
+          path.endsWith('/login') ? {'token': 'jwt', 'user': profile} : profile,
+          200,
+        ),
+      );
+      await failure;
+      expect(session.authenticated, isFalse);
+      expect(session.token, isNull);
+      expect(await storage.read(), isNull);
+    });
+  }
+
+  test('logout cancels pending session restoration', () async {
+    final storage = MemoryTokenStorage();
+    await storage.write('jwt');
+    final started = Completer<void>();
+    final delayed = Completer<http.Response>();
+    final session = AuthSession(
+      storage: storage,
+      client: MockClient((_) async {
+        started.complete();
+        return delayed.future;
+      }),
+    );
+    addTearDown(session.dispose);
+    final restoring = session.restore();
+    await started.future;
+    await session.logout();
+    delayed.complete(response(profile, 200));
+    expect(await restoring, isNull);
+    expect(session.user, isNull);
+    expect(session.token, isNull);
+    expect(await storage.read(), isNull);
+  });
+
+  for (final upload in [false, true]) {
+    test(
+      'stale ${upload ? 'upload' : 'request'} 401 preserves new login',
+      () async {
+        final storage = MemoryTokenStorage();
+        await storage.write('old-jwt');
+        final started = Completer<void>();
+        final delayed = Completer<http.Response>();
+        final session = AuthSession(
+          storage: storage,
+          client: MockClient((request) async {
+            if (request.url.path == '/api/auth/me') {
+              return response(profile, 200);
+            }
+            if (request.url.path == '/api/auth/login') {
+              return response({'token': 'new-jwt', 'user': profile}, 200);
+            }
+            started.complete();
+            return delayed.future;
+          }),
+        );
+        addTearDown(session.dispose);
+        await session.restore();
+        final pending = upload
+            ? session.uploadPhoto('photo.jpg', Uint8List.fromList([1, 2, 3]))
+            : session.request('GET', '/api/work-orders');
+        final failure = expectLater(
+          pending,
+          throwsA(isA<ApiException>().having((e) => e.status, 'status', 401)),
+        );
+        await started.future;
+        await session.login('+77012345678', 'secret12');
+        delayed.complete(response({'error': 'Expired'}, 401));
+        await failure;
+        expect(session.authenticated, isTrue);
+        expect(session.token, 'new-jwt');
+        expect(await storage.read(), 'new-jwt');
+      },
+    );
+  }
+
   test(
     'login sends documented payload, requests profile and saves JWT',
     () async {

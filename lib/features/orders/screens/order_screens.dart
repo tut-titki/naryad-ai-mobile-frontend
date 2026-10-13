@@ -1100,12 +1100,13 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
             key: const ValueKey('equipment-search'),
             decoration: InputDecoration(
               prefixIcon: const Icon(Icons.search),
-              hintText: uiText(context, 'Поиск'),
+              hintText: backendText(context, 'Поиск', 'Іздеу'),
             ),
             onChanged: (value) => setState(() => equipmentSearch = value),
           ),
           const SizedBox(height: 12),
-          if (items.isEmpty) Text(uiText(context, 'Ничего не найдено')),
+          if (items.isEmpty)
+            Text(backendText(context, 'Ничего не найдено', 'Ештеңе табылмады')),
           for (final item in items)
             ListTile(
               key: ValueKey('equipment-${item.id}'),

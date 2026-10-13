@@ -441,6 +441,37 @@ void main() {
     },
   );
   test(
+    'compact refresh preserves loaded execution report and assessment',
+    () async {
+      await repository.refreshExecutor(5);
+      final work = repository.activeOrders.single;
+      final previous = handler;
+      handler = (request) async {
+        if (request.url.path == '/api/work-orders/76') {
+          return json({
+            ...order(76, 'IN_PROGRESS', full: true),
+            'completedAt': '2026-10-06T10:00:00Z',
+            'actualDowntimeMinutes': 12,
+            'aiAssessment': {
+              'score': 82,
+              'verdict': 'ACCEPTED',
+              'explanation': 'Good',
+            },
+          });
+        }
+        return previous(request);
+      };
+      await repository.loadExecutorOrder(5, work);
+      await repository.refreshExecutor(5);
+      expect(work.completedWork, 'Completed');
+      expect(work.faultCode, 'P-12 · Seal');
+      expect(work.finishedAt?.toUtc(), DateTime.parse('2026-10-06T10:00:00Z'));
+      expect(work.downtimeMinutes, 12);
+      expect(work.assessment!.score, 82);
+      expect(work.aiExplanation, 'Good');
+    },
+  );
+  test(
     'detail loads before use; decimal strings and pause-aware clock map correctly',
     () async {
       await repository.refreshExecutor(5);
@@ -600,6 +631,75 @@ void main() {
       );
     },
   );
+  for (final offline in [false, true]) {
+    test(
+      'COMPLETE added during sync waits for its own response; offline=$offline',
+      () async {
+        await repository.refreshExecutor(5);
+        final work = repository.activeOrders.single;
+        await repository.actionStorage.add(
+          PendingAction(
+            id: 'earlier-action',
+            employeeId: 5,
+            orderNumber: 76,
+            type: 'workOrderAction',
+            payload: {'action': 'START'},
+            createdAt: repository.now,
+          ),
+        );
+        final started = Completer<void>();
+        final delayed = Completer<http.Response>();
+        final previous = handler;
+        var completes = 0;
+        handler = (request) async {
+          if (request.url.path.endsWith('/action')) {
+            final body = jsonDecode(request.body) as Map;
+            if (body['clientActionId'] == 'earlier-action') {
+              started.complete();
+              return delayed.future;
+            }
+            completes++;
+            if (offline) throw http.ClientException('offline');
+          }
+          return previous(request);
+        };
+        final syncing = repository.syncPendingActions();
+        await started.future;
+        final submitting = repository.submitExecution(
+          5,
+          work,
+          ExecutionDraft(
+            work: 'Done',
+            faultCode: repository.executorFaultCodes.single,
+          ),
+        );
+        final submitted = offline
+            ? expectLater(submitting, throwsA(isA<ApiException>()))
+            : submitting;
+        // Wait for the COMPLETE to reach durable storage while the old request is blocked.
+        for (var i = 0; i < 100; i++) {
+          if ((await repository.actionStorage.load()).length == 2) break;
+          await Future<void>.delayed(const Duration(milliseconds: 1));
+        }
+        expect((await repository.actionStorage.load()).length, 2);
+        delayed.complete(json({'order': order(76, 'IN_PROGRESS')}));
+        await syncing;
+        await submitted;
+        expect(completes, 1);
+        if (offline) {
+          expect((await drafts.load(5, 76))!.work, 'Done');
+          expect(
+            (await repository.actionStorage.load()).single.payload['action'],
+            'COMPLETE',
+          );
+        } else {
+          expect(await drafts.load(5, 76), isNull);
+          expect(await repository.actionStorage.load(), isEmpty);
+          expect(work.status, OrderStatus.review);
+        }
+      },
+    );
+  }
   test(
     'durable COMPLETE survives restart, keeps UUID and never uploads twice',
     () async {

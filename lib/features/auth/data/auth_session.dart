@@ -130,6 +130,22 @@ class AuthSession extends ChangeNotifier {
   AuthUser? user;
   String? pushToken;
   DateTime? blockedUntil;
+  int _generation = 0;
+  Future<void> _storagePending = Future.value();
+
+  Future<T> _store<T>(Future<T> Function() operation) {
+    final result = _storagePending.then((_) => operation());
+    _storagePending = result.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return result;
+  }
+
+  void _checkGeneration(int generation) {
+    if (generation != _generation) throw const ApiException(401, '');
+  }
+
   String? get accessToken => _token;
   bool get authenticated => _token != null && user != null;
   String? get token => _token;
@@ -141,6 +157,8 @@ class AuthSession extends ChangeNotifier {
     bool protected = true,
     Duration timeout = const Duration(seconds: 20),
   }) async {
+    final requestToken = protected ? _token : null;
+    final generation = _generation;
     final request = http.Request(method, Uri.parse('$baseUrl$path'));
     request.headers['Content-Type'] = 'application/json';
     if (protected && _token != null) {
@@ -150,7 +168,12 @@ class AuthSession extends ChangeNotifier {
     final response = await http.Response.fromStream(
       await _client.send(request).timeout(timeout),
     ).timeout(timeout);
-    if (protected && response.statusCode == 401) await expire();
+    if (response.statusCode == 401 &&
+        requestToken != null &&
+        requestToken == _token &&
+        generation == _generation) {
+      await expire();
+    }
 
     Object? decoded;
     try {
@@ -209,6 +232,8 @@ class AuthSession extends ChangeNotifier {
 
   Future<Map<String, dynamic>> uploadPhoto(String name, Uint8List bytes) async {
     validatePhotoSize(bytes.length);
+    final requestToken = _token;
+    final generation = _generation;
     final request = http.MultipartRequest(
       'POST',
       Uri.parse('$baseUrl/api/uploads'),
@@ -235,7 +260,12 @@ class AuthSession extends ChangeNotifier {
     final response = await http.Response.fromStream(
       await _client.send(request).timeout(const Duration(seconds: 60)),
     ).timeout(const Duration(seconds: 60));
-    if (response.statusCode == 401) await expire();
+    if (response.statusCode == 401 &&
+        requestToken != null &&
+        requestToken == _token &&
+        generation == _generation) {
+      await expire();
+    }
     Object? result;
     try {
       if (response.bodyBytes.isNotEmpty) {
@@ -283,6 +313,7 @@ class AuthSession extends ChangeNotifier {
       throw ApiException(429, '', retryAfter: until.difference(DateTime.now()));
     }
     if (password.isEmpty) throw const ApiException(400, '');
+    final generation = ++_generation;
     Map<String, dynamic> result;
     try {
       result = await request(
@@ -292,11 +323,14 @@ class AuthSession extends ChangeNotifier {
         body: {'phone': phone.trim(), 'password': password},
       );
     } on ApiException catch (error) {
-      if (error.status == 429 && error.retryAfter != null) {
+      if (generation == _generation &&
+          error.status == 429 &&
+          error.retryAfter != null) {
         blockedUntil = DateTime.now().add(error.retryAfter!);
       }
       rethrow;
     }
+    _checkGeneration(generation);
     final token = result['token'] as String;
     final loginUser = AuthUser.fromJson(
       Map<String, dynamic>.from(result['user'] as Map),
@@ -305,25 +339,34 @@ class AuthSession extends ChangeNotifier {
     _token = token;
     try {
       final profile = await request('GET', '/api/auth/me');
+      _checkGeneration(generation);
       final fullUser = AuthUser.fromJson(profile);
       if (fullUser.mobileRoute == null) throw const ApiException(403, '');
-      await _storage.write(token);
+      await _store(() => _storage.write(token));
+      _checkGeneration(generation);
       user = fullUser;
       blockedUntil = null;
       notifyListeners();
       return fullUser;
     } catch (_) {
-      _token = null;
-      user = null;
+      if (generation == _generation) {
+        _token = null;
+        user = null;
+      }
       rethrow;
     }
   }
 
   Future<AuthUser?> restore() async {
-    _token = await _storage.read();
+    final generation = ++_generation;
+    final token = await _store(_storage.read);
+    if (generation != _generation) return null;
+    _token = token;
     if (_token == null) return null;
     try {
-      user = AuthUser.fromJson(await request('GET', '/api/auth/me'));
+      final profile = AuthUser.fromJson(await request('GET', '/api/auth/me'));
+      if (generation != _generation) return null;
+      user = profile;
       if (user!.mobileRoute == null) {
         await expire();
         return null;
@@ -338,9 +381,10 @@ class AuthSession extends ChangeNotifier {
 
   Future<void> refreshUser() async {
     final token = _token;
+    final generation = _generation;
     if (token == null) return;
     final profile = AuthUser.fromJson(await request('GET', '/api/auth/me'));
-    if (_token != token) return;
+    if (_token != token || generation != _generation) return;
     if (profile.mobileRoute == null) {
       await expire();
       return;
@@ -397,6 +441,7 @@ class AuthSession extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    _generation++;
     _loggingOut = true;
     try {
       await _pushRegistration;
@@ -416,11 +461,12 @@ class AuthSession extends ChangeNotifier {
   }
 
   Future<void> expire() async {
+    _generation++;
     _token = null;
     user = null;
     pushToken = null;
     try {
-      await _storage.delete();
+      await _store(_storage.delete);
     } finally {
       notifyListeners();
     }
@@ -428,6 +474,7 @@ class AuthSession extends ChangeNotifier {
 
   @override
   void dispose() {
+    _generation++;
     _client.close();
     super.dispose();
   }

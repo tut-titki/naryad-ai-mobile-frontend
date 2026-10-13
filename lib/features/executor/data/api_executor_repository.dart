@@ -431,15 +431,24 @@ class ApiExecutorRepository extends ChangeNotifier
     order.apiStatus = dto.status;
     order.comment = mapped.comment;
     final data = dto.details;
-    final finished = data['closedAt'] ?? data['completedAt'];
-    order.finishedAt = finished == null
-        ? null
-        : DateTime.parse(finished as String).toLocal();
-    order.completedWork = data['completionText'] as String? ?? '';
-    final fault = data['faultCode'] as Map?;
-    order.faultCode = fault == null
-        ? ''
-        : '${fault['code']} · ${fault['name']}';
+    // Compact lists omit report fields; only supplied fields replace loaded details.
+    if (data.containsKey('closedAt') || data.containsKey('completedAt')) {
+      final finished = data['closedAt'] ?? data['completedAt'];
+      order.finishedAt = finished == null
+          ? null
+          : DateTime.parse(finished as String).toLocal();
+    }
+    if (data.containsKey('completionText')) {
+      order.completedWork = data['completionText'] as String? ?? '';
+    }
+    if (data.containsKey('faultCode')) {
+      final fault = data['faultCode'] as Map?;
+      order.faultCode = fault == null
+          ? ''
+          : '${fault['code']} · ${fault['name']}';
+    } else if (data.containsKey('faultCodeId') && data['faultCodeId'] == null) {
+      order.faultCode = '';
+    }
     if (data['materialUsages'] case final List usages) {
       order.materials = usages
           .map(
@@ -454,7 +463,9 @@ class ApiExecutorRepository extends ChangeNotifier
     } else if (data.containsKey('normativeId') && data['normativeId'] == null) {
       order.normHours = null;
     }
-    order.downtimeMinutes = data['actualDowntimeMinutes'] as int?;
+    if (data.containsKey('actualDowntimeMinutes')) {
+      order.downtimeMinutes = data['actualDowntimeMinutes'] as int?;
+    }
     if (data['events'] case final List events) {
       order.detailsLoaded = true;
       order.history.clear();
@@ -486,7 +497,7 @@ class ApiExecutorRepository extends ChangeNotifier
       );
       order.aiVerdict = order.assessment!.verdict;
       order.aiExplanation = order.assessment!.explanation;
-    } else {
+    } else if (data.containsKey('aiAssessment')) {
       order.assessment = null;
       order.aiVerdict = 'Нет заключения';
       order.aiExplanation = '';
@@ -615,8 +626,8 @@ class ApiExecutorRepository extends ChangeNotifier
       (a) =>
           a.orderNumber == order.apiId && a.payload['action'] == body['action'],
     );
-    if (same.isEmpty) {
-      await actionStorage.add(
+    final action =
+        same.firstOrNull ??
         PendingAction(
           id: const Uuid().v4(),
           employeeId: employeeId,
@@ -624,10 +635,15 @@ class ApiExecutorRepository extends ChangeNotifier
           type: 'workOrderAction',
           payload: body,
           createdAt: now,
-        ),
-      );
+        );
+    if (same.isEmpty) {
+      await actionStorage.add(action);
     }
-    await syncPendingActions();
+    // An existing sync may have taken its snapshot before this action was added.
+    do {
+      if (!_sessionActive) throw const ApiException(403, 'Недостаточно прав');
+      await syncPendingActions();
+    } while ((await actionStorage.load()).any((item) => item.id == action.id));
   }
 
   Future<void> syncPendingActions() =>

@@ -358,7 +358,7 @@ class ApiExecutorRepository extends ChangeNotifier
       ],
       'photos': [
         for (final photo in report.photos)
-          {'name': photo.name, 'hash': sha256.convert(photo.bytes)},
+          {'name': photo.name, 'hash': sha256.convert(photo.bytes).toString()},
       ],
     };
     return sha256.convert(utf8.encode(jsonEncode(content))).toString();

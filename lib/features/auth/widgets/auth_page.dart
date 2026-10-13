@@ -118,7 +118,7 @@ class AuthPage extends StatelessWidget {
                                 Align(
                                   alignment: Alignment.center,
                                   child: Image.asset(
-                                    'assets/logo_blue.png',
+                                    'assets/logo_naryadAi.png',
                                     width: 220,
                                     height: 120,
                                     fit: BoxFit.contain,

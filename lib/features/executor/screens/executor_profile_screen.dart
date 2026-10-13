@@ -5,6 +5,7 @@ import '../../../shared/widgets/app_refresh_indicator.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:mineral/features/auth/screens/change_password_screen.dart';
 import 'package:mineral/features/auth/widgets/auth_scope.dart';
+import 'package:mineral/features/auth/widgets/logout_confirmation_sheet.dart';
 import 'package:mineral/features/auth/data/auth_session.dart';
 import 'package:mineral/features/executor/data/executor_repository.dart';
 import 'package:mineral/features/executor/models/execution_assessment.dart';
@@ -29,6 +30,7 @@ class _ExecutorProfileScreenState extends State<ExecutorProfileScreen> {
   late Future<ExecutorRating?> _ratingLoad;
   ExecutorRatingPeriod _period = const ExecutorRatingPeriod();
   DateTimeRange? _customRange;
+  bool _loggingOut = false;
 
   @override
   void initState() {
@@ -417,6 +419,7 @@ class _ExecutorProfileScreenState extends State<ExecutorProfileScreen> {
                     ),
                     const SizedBox(height: 14),
                     TextButton.icon(
+                      key: const ValueKey('profile-logout'),
                       style: TextButton.styleFrom(
                         minimumSize: const Size.fromHeight(52),
                         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -426,7 +429,7 @@ class _ExecutorProfileScreenState extends State<ExecutorProfileScreen> {
                           borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      onPressed: () => _logout(context),
+                      onPressed: _loggingOut ? null : () => _logout(context),
                       icon: const Icon(LucideIcons.logOut, size: 20),
                       label: Row(
                         children: [
@@ -920,12 +923,16 @@ class _ExecutorProfileScreenState extends State<ExecutorProfileScreen> {
   }
 
   Future<void> _logout(BuildContext context) async {
+    if (_loggingOut) return;
     final session = AuthScope.maybeOf(context);
-    if (session == null) {
-      Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
-      return;
-    }
+    setState(() => _loggingOut = true);
     try {
+      final confirmed = await showLogoutConfirmation(context);
+      if (!context.mounted || !confirmed) return;
+      if (session == null) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
+        return;
+      }
       await session.logout();
     } catch (_) {
       if (context.mounted) {
@@ -933,6 +940,8 @@ class _ExecutorProfileScreenState extends State<ExecutorProfileScreen> {
           SnackBar(content: Text(strings(context).authNetworkError)),
         );
       }
+    } finally {
+      if (mounted) setState(() => _loggingOut = false);
     }
   }
 }

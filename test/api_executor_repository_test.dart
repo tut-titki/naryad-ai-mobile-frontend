@@ -631,6 +631,67 @@ void main() {
       );
     },
   );
+  for (final datedResponse in [false, true]) {
+    test(
+      'stale COMPLETE preserves the newer status and photos; dated=$datedResponse',
+      () async {
+        await repository.refreshExecutor(5);
+        final work = repository.activeOrders.single;
+        final started = Completer<void>();
+        final reply = Completer<http.Response>();
+        final previous = handler;
+        var actions = 0;
+        handler = (request) async {
+          if (request.url.path.endsWith('/action')) {
+            actions++;
+            started.complete();
+            return reply.future;
+          }
+          if (request.url.path == '/api/work-orders/76') {
+            return json({
+              ...order(76, 'CLOSED', full: true),
+              'updatedAt': '2026-10-06T12:00:00Z',
+              'photos': [
+                {'type': 'AFTER', 'fileUrl': '/latest.jpg'},
+              ],
+            });
+          }
+          if (request.url.path == '/latest.jpg') {
+            return http.Response.bytes([9, 8, 7], 200);
+          }
+          return previous(request);
+        };
+        final sending = repository.submitExecution(
+          5,
+          work,
+          ExecutionDraft(
+            work: 'Old report',
+            faultCode: repository.executorFaultCodes.single,
+            photos: [
+              OrderPhoto(name: 'old.jpg', bytes: Uint8List.fromList([1, 2, 3])),
+            ],
+          ),
+        );
+        await started.future;
+        await repository.loadExecutorOrder(5, work);
+        final responseOrder = order(76, 'AI_REVIEW');
+        if (datedResponse) {
+          responseOrder['updatedAt'] = '2026-10-06T11:00:00Z';
+        } else {
+          responseOrder.remove('updatedAt');
+        }
+        reply.complete(json({'order': responseOrder}));
+        await sending;
+        expect(work.status, OrderStatus.closed);
+        expect(work.afterImages.single.bytes, [9, 8, 7]);
+        expect(work.completedWork, 'Completed');
+        expect(actions, 1);
+        expect(await repository.actionStorage.load(), isEmpty);
+        expect(await drafts.load(5, work.number), isNull);
+      },
+    );
+  }
+
   for (final offline in [false, true]) {
     test(
       'COMPLETE added during sync waits for its own response; offline=$offline',
@@ -762,6 +823,212 @@ void main() {
       expect(await drafts.load(5, 76), isNull);
     },
   );
+
+  test(
+    'edited pause reason survives a queued retry and repository restart',
+    () async {
+      await repository.refreshExecutor(5);
+      final work = repository
+          .assignedTo(5)
+          .firstWhere((item) => item.apiId == 76);
+      final storage = repository.actionStorage;
+      final previous = handler;
+      final sent = <Map<String, dynamic>>[];
+      var online = false;
+      handler = (request) async {
+        if (!request.url.path.endsWith('/action')) return previous(request);
+        sent.add(jsonDecode(request.body) as Map<String, dynamic>);
+        if (!online) throw const SocketException('offline');
+        if (sent.last['comment'] == 'Old') {
+          return json({'error': 'Invalid reason'}, 422);
+        }
+        return json({'order': order(76, 'PAUSED')});
+      };
+
+      await expectLater(
+        repository.executorAction(5, work, OrderStatus.paused, reason: 'Old'),
+        throwsA(isA<ApiException>()),
+      );
+      await expectLater(
+        repository.executorAction(5, work, OrderStatus.paused, reason: 'New'),
+        throwsA(isA<ApiException>().having((e) => e.status, 'status', 409)),
+      );
+      await expectLater(
+        repository.executorAction(5, work, OrderStatus.paused, reason: 'Old'),
+        throwsA(isA<ApiException>()),
+      );
+      expect(
+        (await storage.load()).where(
+          (item) => item.type == 'actionReasonDraft',
+        ),
+        isEmpty,
+      );
+      await expectLater(
+        repository.executorAction(5, work, OrderStatus.paused, reason: 'New'),
+        throwsA(isA<ApiException>().having((e) => e.status, 'status', 409)),
+      );
+      final queued = await storage.load();
+      expect(
+        queued
+            .where((item) => item.type == 'workOrderAction')
+            .single
+            .payload['comment'],
+        'Old',
+      );
+      expect(
+        queued
+            .where((item) => item.type == 'actionReasonDraft')
+            .single
+            .payload['comment'],
+        'New',
+      );
+
+      repository.dispose();
+      repository = ApiExecutorRepository(
+        api: ExecutorApi(session, referenceStorage: MemoryReferenceStorage()),
+        draftStorage: drafts,
+        actionStorage: storage,
+      );
+      expect(
+        await repository.restoreActionReason(5, work, OrderStatus.paused),
+        'New',
+      );
+      online = true;
+      await expectLater(
+        repository.syncPendingActions(),
+        throwsA(isA<ApiException>().having((e) => e.status, 'status', 422)),
+      );
+      expect(sent.last['comment'], 'Old');
+      expect(
+        await repository.restoreActionReason(5, work, OrderStatus.paused),
+        'New',
+      );
+      await repository.executorAction(
+        5,
+        work,
+        OrderStatus.paused,
+        reason: 'New',
+      );
+      expect(sent.last['comment'], 'New');
+      expect(
+        await repository.restoreActionReason(5, work, OrderStatus.paused),
+        isNull,
+      );
+    },
+  );
+
+  for (final status in [OrderStatus.paused, OrderStatus.rejected]) {
+    for (final backgroundRetry in [false, true]) {
+      testWidgets(
+        'edited $status reason remains visible after old success; background=$backgroundRetry',
+        (tester) async {
+          await repository.refreshExecutor(5);
+          final work = repository.activeOrders.single;
+          if (status == OrderStatus.rejected) work.status = OrderStatus.issued;
+          final previous = handler;
+          final response = Completer<http.Response>();
+          final started = Completer<void>();
+          final sent = <Map>[];
+          handler = (request) async {
+            if (!request.url.path.endsWith('/action')) return previous(request);
+            sent.add(jsonDecode(request.body) as Map);
+            if (backgroundRetry && sent.length == 1) {
+              throw const SocketException('offline');
+            }
+            started.complete();
+            return response.future;
+          };
+          if (backgroundRetry) {
+            await expectLater(
+              repository.executorAction(5, work, status, reason: 'Old'),
+              throwsA(isA<ApiException>()),
+            );
+          }
+          final sending = backgroundRetry
+              ? repository.syncPendingActions()
+              : repository.executorAction(5, work, status, reason: 'Old');
+          await started.future;
+          await expectLater(
+            repository.executorAction(5, work, status, reason: 'New'),
+            throwsA(isA<ApiException>().having((e) => e.status, 'status', 409)),
+          );
+          await tester.pumpWidget(
+            MaterialApp(
+              home: ExecutorOrderScreen(
+                store: repository,
+                order: work,
+                employeeId: 5,
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          response.complete(
+            json({
+              'order': order(
+                76,
+                status == OrderStatus.paused ? 'PAUSED' : 'REJECTED',
+              ),
+            }),
+          );
+          await sending;
+          expect(await repository.restoreActionReason(5, work, status), 'New');
+          expect(sent.every((body) => body['comment'] == 'Old'), isTrue);
+
+          await tester.pumpAndSettle();
+          final saved = find.byKey(
+            ValueKey(
+              'saved-action-reason-${status == OrderStatus.paused ? 0 : 1}',
+            ),
+          );
+          await tester.ensureVisible(saved);
+          expect(tester.widget<SelectableText>(saved).data, 'New');
+          expect(
+            find.text(
+              'Исправленная причина сохранена на телефоне, но не отправлена. Сервер принял предыдущую версию.',
+            ),
+            findsOneWidget,
+          );
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox());
+        },
+      );
+    }
+  }
+
+  test('a prior rejection does not fail a later successful action', () async {
+    await repository.refreshExecutor(5);
+    final work = repository
+        .assignedTo(5)
+        .firstWhere((item) => item.apiId == 76);
+    await repository.actionStorage.add(
+      PendingAction(
+        id: 'old-rejected',
+        employeeId: 5,
+        orderNumber: 77,
+        type: 'workOrderAction',
+        payload: {'action': 'PAUSE', 'comment': 'Invalid'},
+        createdAt: DateTime.utc(2026, 10, 6),
+      ),
+    );
+    final previous = handler;
+    handler = (request) async {
+      if (!request.url.path.endsWith('/action')) return previous(request);
+      final body = jsonDecode(request.body) as Map;
+      if (body['clientActionId'] == 'old-rejected') {
+        return json({'error': 'Invalid data'}, 422);
+      }
+      return json({'order': order(76, 'PAUSED')});
+    };
+
+    await repository.executorAction(
+      5,
+      work,
+      OrderStatus.paused,
+      reason: 'Valid',
+    );
+    expect(work.status, OrderStatus.paused);
+    expect(await repository.actionStorage.load(), isEmpty);
+  });
 
   test(
     'FIFO stops on network error; replay and permanent errors are removed',

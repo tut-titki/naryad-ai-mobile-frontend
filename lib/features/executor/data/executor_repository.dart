@@ -29,6 +29,11 @@ abstract interface class ExecutorRepository implements Listenable {
     OrderStatus status, {
     String reason = '',
   });
+  Future<String?> restoreActionReason(
+    int employeeId,
+    WorkOrder order,
+    OrderStatus status,
+  );
   Future<void> submitExecution(
     int employeeId,
     WorkOrder order,

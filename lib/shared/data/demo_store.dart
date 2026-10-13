@@ -90,6 +90,13 @@ class DemoStore extends ChangeNotifier implements ExecutorRepository {
   }
 
   @override
+  Future<String?> restoreActionReason(
+    int employeeId,
+    WorkOrder order,
+    OrderStatus status,
+  ) async => null;
+
+  @override
   Future<void> executorAction(
     int employeeId,
     WorkOrder order,

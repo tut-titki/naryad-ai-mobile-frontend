@@ -104,6 +104,19 @@ void main() {
 
         await tester.tap(find.text(s.logout));
         await tester.pumpAndSettle();
+        expect(find.text(s.logoutConfirmation), findsOneWidget);
+        expect(session.user, isNotNull);
+        await tester.tap(find.byKey(const ValueKey('logout-cancel')));
+        await tester.pumpAndSettle();
+        expect(session.user, isNotNull);
+        expect(
+          find.byKey(const ValueKey('logout-confirmation-sheet')),
+          findsNothing,
+        );
+        await tester.tap(find.byKey(const ValueKey('profile-logout')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('logout-confirm')));
+        await tester.pumpAndSettle();
         expect(session.user, isNull);
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox());

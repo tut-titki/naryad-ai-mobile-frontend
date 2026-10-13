@@ -919,6 +919,9 @@ class AppLocalizationsKk extends AppLocalizations {
   String get logout => 'Шығу';
 
   @override
+  String get logoutConfirmation => 'Шығуды растайсыз ба?';
+
+  @override
   String get ratingPending => 'Баға күтілуде';
 
   @override
@@ -947,6 +950,10 @@ class AppLocalizationsKk extends AppLocalizations {
 
   @override
   String get pauseReason => 'Уақытша тоқтату себебі';
+
+  @override
+  String get savedReasonNotSent =>
+      'Түзетілген себеп телефонда сақталды, бірақ жіберілмеді. Сервер алдыңғы нұсқаны қабылдады.';
 
   @override
   String get orderReassignedWarning =>
@@ -1371,6 +1378,24 @@ class AppLocalizationsKk extends AppLocalizations {
 
   @override
   String get draftSaveFailed => 'Қаралама сақталмады. Қайталау үшін басыңыз.';
+
+  @override
+  String get discardOrderDraftTitle => 'Қараламасыз бастау керек пе?';
+
+  @override
+  String get discardOrderDraftMessage =>
+      'Сақталған қараламаны жойып, бос нысанды ашу керек пе? Қараламаның мәтіні, баптаулары және фотосуреттері жоғалады.';
+
+  @override
+  String get discardOrderDraftAction => 'Қараламаны жою';
+
+  @override
+  String get orderDraftDiscardFailed =>
+      'Қараламаны жою мүмкін болмады. Сақталған деректер өзгерген жоқ. Қайталап көріңіз.';
+
+  @override
+  String get orderDraftChangedBeforeDiscard =>
+      'Қаралама басқа нысанда өзгерді. Өзекті деректерді жүктеу үшін «Қайталау» түймесін басыңыз.';
 
   @override
   String overdueByMinutes(String minutes) {

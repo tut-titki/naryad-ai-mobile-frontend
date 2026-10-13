@@ -6,6 +6,7 @@ import '../../../l10n/language_switcher.dart';
 import '../../../l10n/ui_localization.dart';
 import '../../auth/screens/change_password_screen.dart';
 import '../../auth/widgets/auth_scope.dart';
+import '../../auth/widgets/logout_confirmation_sheet.dart';
 import '../../orders/data/references_api.dart';
 import '../../../shared/widgets/backend_refresh_view.dart';
 import '../../../shared/widgets/backend_section.dart';
@@ -30,6 +31,18 @@ class _MasterProfileScreenState extends State<MasterProfileScreen> {
   int? _brigadeId;
   Future<List<BrigadeReference>>? _brigades;
   BackendRefreshController? _refreshController;
+  bool _confirmingLogout = false;
+
+  Future<void> _confirmLogout() async {
+    if (_confirmingLogout || widget.loggingOut) return;
+    setState(() => _confirmingLogout = true);
+    try {
+      final confirmed = await showLogoutConfirmation(context);
+      if (mounted && confirmed && !widget.loggingOut) widget.onLogout();
+    } finally {
+      if (mounted) setState(() => _confirmingLogout = false);
+    }
+  }
 
   Future<void> _refreshProfile() async {
     final session = AuthScope.maybeOf(context);
@@ -319,6 +332,7 @@ class _MasterProfileScreenState extends State<MasterProfileScreen> {
                   if (session != null) ...[
                     const SizedBox(height: 14),
                     TextButton.icon(
+                      key: const ValueKey('profile-logout'),
                       style: TextButton.styleFrom(
                         minimumSize: const Size.fromHeight(52),
                         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -328,7 +342,9 @@ class _MasterProfileScreenState extends State<MasterProfileScreen> {
                           borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      onPressed: widget.loggingOut ? null : widget.onLogout,
+                      onPressed: widget.loggingOut || _confirmingLogout
+                          ? null
+                          : _confirmLogout,
                       icon: const Icon(LucideIcons.logOut, size: 20),
                       label: Row(
                         children: [

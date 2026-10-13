@@ -33,9 +33,44 @@ class _ExecutorOrderScreenState extends State<ExecutorOrderScreen> {
   bool _changing = false;
   bool _reasonOpen = false;
   final _comment = TextEditingController();
+  late Future<List<String?>> _savedReasons;
+
+  Future<List<String?>> _loadSavedReasons() => Future.wait([
+    for (final status in [OrderStatus.paused, OrderStatus.rejected])
+      store
+          .restoreActionReason(employeeId, order, status)
+          .catchError((Object _) => null),
+  ]);
+
+  @override
+  void initState() {
+    super.initState();
+    _savedReasons = _loadSavedReasons();
+    store.addListener(_refreshSavedReasons);
+  }
+
+  void _refreshSavedReasons() {
+    final savedReasons = _loadSavedReasons();
+    setState(() {
+      _savedReasons = savedReasons;
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant ExecutorOrderScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.store != store ||
+        oldWidget.order != order ||
+        oldWidget.employeeId != employeeId) {
+      oldWidget.store.removeListener(_refreshSavedReasons);
+      store.addListener(_refreshSavedReasons);
+      _savedReasons = _loadSavedReasons();
+    }
+  }
 
   @override
   void dispose() {
+    store.removeListener(_refreshSavedReasons);
     _comment.dispose();
     super.dispose();
   }
@@ -104,6 +139,13 @@ class _ExecutorOrderScreenState extends State<ExecutorOrderScreen> {
     String? serverError;
     var sending = false;
     try {
+      try {
+        controller.text =
+            await store.restoreActionReason(employeeId, order, status) ?? '';
+      } catch (_) {
+        // A storage error must not block entering a new reason.
+      }
+      if (!context.mounted) return;
       await showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,
@@ -421,6 +463,37 @@ class _ExecutorOrderScreenState extends State<ExecutorOrderScreen> {
         body: ListView(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
           children: [
+            FutureBuilder<List<String?>>(
+              future: _savedReasons,
+              builder: (context, snapshot) => Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var index = 0; index < 2; index++)
+                    if (!actions.contains(index == 0 ? 'PAUSE' : 'REJECT') &&
+                        snapshot.data?[index] != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: OrderSection(
+                          icon: LucideIcons.fileText,
+                          title: index == 0
+                              ? strings(context).pauseReason
+                              : strings(context).rejectReason,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(strings(context).savedReasonNotSent),
+                              const SizedBox(height: 8),
+                              SelectableText(
+                                snapshot.data![index]!,
+                                key: ValueKey('saved-action-reason-$index'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                ],
+              ),
+            ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(

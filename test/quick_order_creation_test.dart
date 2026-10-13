@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:mineral/core/services/photo_picker_service.dart';
 import 'package:mineral/features/orders/screens/order_screens.dart';
 import 'package:mineral/features/references/data/reference_storage_stub.dart';
@@ -329,4 +330,209 @@ void main() {
       await tester.pumpAndSettle();
     },
   );
+
+  for (final closeDuringLoad in [false, true]) {
+    testWidgets(
+      'manual draft survives slow equipment restore; close=$closeDuringLoad',
+      (tester) async {
+        final storage = MemoryReferenceStorage();
+        const draftKey = 'order-draft:https://backend.test:test';
+        final saved = <String, dynamic>{
+          'equipmentId': 1,
+          'executorId': 8,
+          'normativeId': 3,
+          'faultCodeId': 4,
+          'manualExecutor': true,
+          'manualWork': true,
+          'description': '',
+          'photos': <Object>[],
+        };
+        await storage.write(draftKey, [saved]);
+        Future<void> expectSavedFields() async {
+          final actual = (await storage.read(draftKey))!.single;
+          for (final field in saved.keys) {
+            expect(actual[field], saved[field], reason: field);
+          }
+        }
+
+        final normatives = Completer<http.Response>();
+        var loadingStarted = false;
+        final api = testApi(
+          handle: (request) async {
+            switch (request.url.path) {
+              case '/api/references/areas':
+                return jsonResponse([
+                  {'id': 1, 'name': 'Area'},
+                ]);
+              case '/api/references/equipment':
+                return jsonResponse([
+                  {'id': 1, 'name': 'Pump', 'areaId': 1},
+                ]);
+              case '/api/references/executors':
+                return jsonResponse([
+                  executorJson(),
+                  {...executorJson(), 'id': 8, 'fullName': 'Manual executor'},
+                ]);
+              case '/api/references/fault-codes':
+                return jsonResponse([
+                  {'id': 4, 'code': 'M-02', 'name': 'Bearing'},
+                ]);
+              case '/api/references/normatives':
+                loadingStarted = true;
+                return normatives.future;
+              case '/api/recommendations/executors':
+                return jsonResponse([
+                  {
+                    'id': 7,
+                    'fullName': 'Test Executor',
+                    'score': 90,
+                    'employeeStatus': 'AVAILABLE',
+                  },
+                ]);
+            }
+            return null;
+          },
+        );
+        addTearDown(api.dispose);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: CreateOrderScreen(
+              api: api,
+              draftStorage: storage,
+              photoPicker: _NoPhotos(),
+            ),
+          ),
+        );
+        for (var i = 0; i < 10; i++) {
+          await tester.pump(const Duration(milliseconds: 10));
+        }
+        expect(loadingStarted, isTrue);
+        await tester.pump(const Duration(seconds: 1));
+        await expectSavedFields();
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.inactive,
+        );
+        await tester.pump();
+        await expectSavedFields();
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        if (closeDuringLoad) {
+          await tester.pumpWidget(const SizedBox());
+          await tester.pump();
+          await expectSavedFields();
+        }
+        normatives.complete(
+          jsonResponse([
+            {'id': 3, 'name': 'Repair', 'hours': '2.5'},
+          ]),
+        );
+        await tester.pumpAndSettle();
+        if (!closeDuringLoad) {
+          await tester.pump(const Duration(seconds: 1));
+          final restored = (await storage.read(draftKey))!.single;
+          for (final field in [
+            'executorId',
+            'normativeId',
+            'faultCodeId',
+            'manualWork',
+            'manualExecutor',
+          ]) {
+            expect(restored[field], saved[field], reason: field);
+          }
+        }
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpAndSettle();
+      },
+    );
+  }
+
+  testWidgets('late draft equipment response keeps the newer selection', (
+    tester,
+  ) async {
+    final storage = MemoryReferenceStorage();
+    await storage.write('order-draft:https://backend.test:test', [
+      {
+        'equipmentId': 1,
+        'executorId': 8,
+        'manualExecutor': true,
+        'description': '',
+        'photos': <Object>[],
+      },
+    ]);
+    final oldNormatives = Completer<http.Response>();
+    final api = testApi(
+      handle: (request) async {
+        switch (request.url.path) {
+          case '/api/references/areas':
+            return jsonResponse([
+              {'id': 1, 'name': 'Area'},
+            ]);
+          case '/api/references/equipment':
+            return jsonResponse([
+              {'id': 1, 'name': 'Old', 'areaId': 1},
+              {'id': 2, 'name': 'New', 'areaId': 1},
+            ]);
+          case '/api/references/executors':
+            return jsonResponse([
+              executorJson(),
+              {...executorJson(), 'id': 8, 'fullName': 'Old executor'},
+            ]);
+          case '/api/references/normatives':
+            if (request.url.queryParameters['equipmentId'] == '1') {
+              return oldNormatives.future;
+            }
+            return jsonResponse([]);
+          case '/api/recommendations/executors':
+            final equipmentId = int.parse(
+              request.url.queryParameters['equipmentId']!,
+            );
+            final id = equipmentId == 1 ? 8 : 7;
+            return jsonResponse([
+              {
+                'id': id,
+                'fullName': id == 8 ? 'Old executor' : 'Test Executor',
+                'score': 90,
+                'employeeStatus': 'AVAILABLE',
+              },
+            ]);
+        }
+        return null;
+      },
+    );
+    addTearDown(api.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CreateOrderScreen(
+          api: api,
+          draftStorage: storage,
+          photoPicker: _NoPhotos(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('select-equipment')));
+    await tester.tap(find.byKey(const ValueKey('select-equipment')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('New'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 1));
+    expect(
+      (await storage.read(
+        'order-draft:https://backend.test:test',
+      ))!.single['equipmentId'],
+      2,
+    );
+    oldNormatives.complete(jsonResponse([]));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('executor-7')),
+        matching: find.byIcon(Icons.check_circle),
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
 }

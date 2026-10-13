@@ -1772,6 +1772,12 @@ abstract class AppLocalizations {
   /// **'Выйти'**
   String get logout;
 
+  /// No description provided for @logoutConfirmation.
+  ///
+  /// In ru, this message translates to:
+  /// **'Вы уверены, что хотите выйти?'**
+  String get logoutConfirmation;
+
   /// No description provided for @ratingPending.
   ///
   /// In ru, this message translates to:
@@ -1831,6 +1837,12 @@ abstract class AppLocalizations {
   /// In ru, this message translates to:
   /// **'Причина приостановки'**
   String get pauseReason;
+
+  /// No description provided for @savedReasonNotSent.
+  ///
+  /// In ru, this message translates to:
+  /// **'Исправленная причина сохранена на телефоне, но не отправлена. Сервер принял предыдущую версию.'**
+  String get savedReasonNotSent;
 
   /// No description provided for @orderReassignedWarning.
   ///
@@ -2575,6 +2587,36 @@ abstract class AppLocalizations {
   /// In ru, this message translates to:
   /// **'Черновик не сохранён. Нажмите, чтобы повторить.'**
   String get draftSaveFailed;
+
+  /// No description provided for @discardOrderDraftTitle.
+  ///
+  /// In ru, this message translates to:
+  /// **'Начать без черновика?'**
+  String get discardOrderDraftTitle;
+
+  /// No description provided for @discardOrderDraftMessage.
+  ///
+  /// In ru, this message translates to:
+  /// **'Удалить сохранённый черновик и открыть пустую форму? Текст, настройки и фотографии черновика будут потеряны.'**
+  String get discardOrderDraftMessage;
+
+  /// No description provided for @discardOrderDraftAction.
+  ///
+  /// In ru, this message translates to:
+  /// **'Удалить черновик'**
+  String get discardOrderDraftAction;
+
+  /// No description provided for @orderDraftDiscardFailed.
+  ///
+  /// In ru, this message translates to:
+  /// **'Не удалось удалить черновик. Сохранённые данные не изменены. Повторите попытку.'**
+  String get orderDraftDiscardFailed;
+
+  /// No description provided for @orderDraftChangedBeforeDiscard.
+  ///
+  /// In ru, this message translates to:
+  /// **'Черновик изменился в другой форме. Нажмите «Повторить», чтобы загрузить актуальные данные.'**
+  String get orderDraftChangedBeforeDiscard;
 
   /// No description provided for @overdueByMinutes.
   ///

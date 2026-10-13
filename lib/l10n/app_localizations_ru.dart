@@ -914,6 +914,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get logout => 'Выйти';
 
   @override
+  String get logoutConfirmation => 'Вы уверены, что хотите выйти?';
+
+  @override
   String get ratingPending => 'Оценка ожидается';
 
   @override
@@ -942,6 +945,10 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get pauseReason => 'Причина приостановки';
+
+  @override
+  String get savedReasonNotSent =>
+      'Исправленная причина сохранена на телефоне, но не отправлена. Сервер принял предыдущую версию.';
 
   @override
   String get orderReassignedWarning =>
@@ -1367,6 +1374,24 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get draftSaveFailed =>
       'Черновик не сохранён. Нажмите, чтобы повторить.';
+
+  @override
+  String get discardOrderDraftTitle => 'Начать без черновика?';
+
+  @override
+  String get discardOrderDraftMessage =>
+      'Удалить сохранённый черновик и открыть пустую форму? Текст, настройки и фотографии черновика будут потеряны.';
+
+  @override
+  String get discardOrderDraftAction => 'Удалить черновик';
+
+  @override
+  String get orderDraftDiscardFailed =>
+      'Не удалось удалить черновик. Сохранённые данные не изменены. Повторите попытку.';
+
+  @override
+  String get orderDraftChangedBeforeDiscard =>
+      'Черновик изменился в другой форме. Нажмите «Повторить», чтобы загрузить актуальные данные.';
 
   @override
   String overdueByMinutes(String minutes) {

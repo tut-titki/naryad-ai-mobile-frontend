@@ -13,6 +13,7 @@ import 'package:mineral/core/api/api_services.dart';
 import 'package:mineral/core/services/photo_picker_service.dart';
 
 import 'package:mineral/features/orders/data/recommendations_api.dart';
+import 'package:mineral/features/orders/data/order_creation_draft_storage.dart';
 import 'package:mineral/features/orders/data/references_api.dart';
 import 'package:mineral/features/orders/data/uploads_api.dart';
 import 'package:mineral/features/orders/data/work_orders_api.dart';
@@ -86,9 +87,12 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
   Timer? recommendationTimer;
   Timer? draftTimer;
   ReferenceStorage? draftStorage;
+  OrderCreationDraftStorage? creationDraftStorage;
   String? draftKey;
   bool issued = false;
   bool draftRestored = false;
+  bool draftLoadFailed = false;
+  bool discardingDraft = false;
   Future<void> draftWrites = Future.value();
   int recommendationVersion = 0;
   int equipmentVersion = 0;
@@ -100,6 +104,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
   // MARK: Photos
 
   final List<OrderPhoto> photos = [];
+  int photoRecoveryVersion = 0;
 
   bool pickingPhotos = true;
 
@@ -152,12 +157,17 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
   }
 
   Future<void> restoreDraft() async {
+    draftLoadFailed = false;
     final owner = AuthScope.maybeOf(context)?.user?.id;
     if (owner == null && widget.draftStorage == null) return;
     draftStorage = widget.draftStorage ?? createReferenceStorage();
     draftKey = 'order-draft:${widget.api.baseUrl}:${owner ?? 'test'}';
+    creationDraftStorage ??= OrderCreationDraftStorage(
+      storage: draftStorage!,
+      key: draftKey!,
+    );
     try {
-      final values = await draftStorage!.read(draftKey!);
+      final values = await creationDraftStorage!.load();
       if (!mounted || values == null || values.isEmpty) return;
       final draft = values.first;
       equipmentId = draft['equipmentId'] as int?;
@@ -190,16 +200,22 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
               bytes: base64Decode(p['bytes'] as String),
               takenAt: DateTime.tryParse(p['takenAt'] as String? ?? ''),
             ),
-          );
+          )
+          .toList();
       photos.addAll(savedPhotos.take(5 - photos.length));
       setState(() {});
     } catch (_) {
-      // A missing/corrupt draft must not prevent opening the creation form.
+      draftLoadFailed = true;
+      rethrow;
     }
   }
 
   void saveDraft() {
-    if (issued || !draftRestored || draftStorage == null || draftKey == null) {
+    if (issued ||
+        !draftRestored ||
+        draftLoadFailed ||
+        draftStorage == null ||
+        draftKey == null) {
       return;
     }
     final data = {
@@ -227,8 +243,79 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
       ],
     };
     draftWrites = draftWrites
-        .then((_) => draftStorage!.write(draftKey!, [data]))
+        .then((_) => creationDraftStorage!.save(data))
         .catchError((Object _) {});
+  }
+
+  Future<void> discardDraft() async {
+    if (!draftLoadFailed || discardingDraft || creating) return;
+    setState(() => discardingDraft = true);
+    try {
+      final s = strings(context);
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(s.discardOrderDraftTitle),
+          content: Text(s.discardOrderDraftMessage),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(s.cancel),
+            ),
+            FilledButton(
+              key: const ValueKey('confirm-discard-order-draft'),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(s.discardOrderDraftAction),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || confirmed != true) return;
+      await draftWrites;
+      final discarded = await creationDraftStorage!.discardFailedLoad();
+      if (!mounted) return;
+      if (!discarded) {
+        showMessage(context, strings(context).orderDraftChangedBeforeDiscard);
+        return;
+      }
+
+      draftTimer?.cancel();
+      recommendationTimer?.cancel();
+      equipmentVersion++;
+      recommendationVersion++;
+      photoRecoveryVersion++;
+      equipmentId = null;
+      areaId = null;
+      executorId = null;
+      normativeId = null;
+      faultCodeId = null;
+      brigadeId = null;
+      assignBrigade = false;
+      manualWork = false;
+      manualExecutor = false;
+      useNormative = false;
+      customDeadline = false;
+      deadlineHours = 2;
+      deadline = DateTime.now().add(const Duration(hours: 2));
+      priority = WorkOrderPriority.normal;
+      normatives = [];
+      recommendedExecutors = [];
+      workRecommendation = null;
+      recommendationCache.clear();
+      photos.clear();
+      pickingPhotos = false;
+      descriptionController.clear();
+      commentController.clear();
+      draftRestored = false;
+      draftLoadFailed = false;
+      await loadInitialData();
+    } catch (_) {
+      if (mounted) {
+        showMessage(context, strings(context).orderDraftDiscardFailed);
+      }
+    } finally {
+      if (mounted) setState(() => discardingDraft = false);
+    }
   }
 
   // MARK: Initial data
@@ -306,76 +393,73 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
       brigades = results[3] as List<BrigadeReference>;
 
       equipment = results[4] as List<EquipmentReference>;
-      setState(() => loadingReferences = false);
       if (!draftRestored) {
         await restoreDraft();
+        if (!mounted) return;
         draftRestored = true;
+        saveDraft();
       }
+      setState(() => loadingReferences = false);
       final restoredEquipment = equipmentId;
       final initial = widget.initialEquipmentId ?? restoredEquipment;
       if (initial != null && equipment.any((e) => e.id == initial)) {
-        final savedExecutor = executorId;
-        final savedNormative = normativeId;
-        final savedFault = faultCodeId;
-        final savedManualWork = manualWork && restoredEquipment == initial;
-        final savedManualExecutor =
-            manualExecutor && restoredEquipment == initial;
-        await changeEquipment(initial, force: true);
-        if (!mounted) return;
-        setState(() {
-          if (savedManualWork) {
-            manualWork = true;
-            normativeId = normatives.any((n) => n.id == savedNormative)
-                ? savedNormative
-                : null;
-            faultCodeId = faultCodes.any((f) => f.id == savedFault)
-                ? savedFault
-                : null;
-            useNormative = normativeId != null && !customDeadline;
-          }
-          if (savedManualExecutor &&
-              executors.any((e) => e.id == savedExecutor)) {
-            executorId = savedExecutor;
-            manualExecutor = true;
-          }
-        });
+        await changeEquipment(
+          initial,
+          force: true,
+          preserveManualSelection: restoredEquipment == initial,
+        );
       }
     } on ApiException catch (error) {
       if (!mounted) return;
 
       setState(() {
         loadingReferences = false;
-        pageError = error.message;
+        pageError = draftLoadFailed
+            ? strings(context).draftLoadFailed
+            : error.message;
       });
     } catch (error) {
       if (!mounted) return;
 
       setState(() {
         loadingReferences = false;
-        pageError = backendError(context, error);
+        pageError = draftLoadFailed
+            ? strings(context).draftLoadFailed
+            : backendError(context, error);
       });
     }
   }
 
   // MARK: Area / equipment
 
-  Future<void> changeEquipment(int newEquipmentId, {bool force = false}) async {
+  Future<void> changeEquipment(
+    int newEquipmentId, {
+    bool force = false,
+    bool preserveManualSelection = false,
+  }) async {
     if (!force && equipmentId == newEquipmentId) {
       return;
     }
 
+    final keepSelection =
+        preserveManualSelection && equipmentId == newEquipmentId;
+    final selectionVersion = ++equipmentVersion;
+    final initialDescription = descriptionController.text.trim();
+    final initialBrigade = assignBrigade ? brigadeId : null;
+
     setState(() {
       equipmentId = newEquipmentId;
       areaId = equipment.firstWhere((e) => e.id == newEquipmentId).areaId;
-      manualWork = false;
-      manualExecutor = false;
-      useNormative = false;
+      if (!keepSelection) {
+        manualWork = false;
+        manualExecutor = false;
+        useNormative = false;
+        executorId = null;
+        normativeId = null;
+        faultCodeId = null;
+      }
+
       recommendationVersion++;
-
-      executorId = null;
-      normativeId = null;
-      faultCodeId = null;
-
       normatives = [];
       recommendedExecutors = [];
       workRecommendation = null;
@@ -384,9 +468,9 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
       loadingRecommendations = true;
     });
 
-    final selectionVersion = ++equipmentVersion;
-    final initialDescription = descriptionController.text.trim();
-    final initialBrigade = assignBrigade ? brigadeId : null;
+    bool selectionCurrent() =>
+        equipmentId == newEquipmentId && equipmentVersion == selectionVersion;
+
     try {
       final results = await Future.wait([
         widget.api.references.getNormatives(equipmentId: newEquipmentId),
@@ -395,16 +479,12 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
               equipmentId: newEquipmentId,
               description: descriptionController.text,
               faultCodeId: faultCodeId,
-              brigadeId: assignBrigade ? brigadeId : null,
+              brigadeId: initialBrigade,
             )
             .catchError((_) => <RecommendedExecutor>[]),
       ]);
 
-      if (!mounted ||
-          equipmentId != newEquipmentId ||
-          selectionVersion != equipmentVersion) {
-        return;
-      }
+      if (!mounted || !selectionCurrent()) return;
 
       final loadedNormatives = results[0] as List<NormativeReference>;
 
@@ -412,6 +492,22 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
 
       setState(() {
         normatives = loadedNormatives;
+
+        // Validate the current selection only after a successful load.
+        if (keepSelection && manualWork) {
+          if (!normatives.any((n) => n.id == normativeId)) {
+            normativeId = null;
+          }
+          if (!faultCodes.any((f) => f.id == faultCodeId)) {
+            faultCodeId = null;
+          }
+          useNormative = normativeId != null && !customDeadline;
+        }
+        if (keepSelection &&
+            manualExecutor &&
+            !executors.any((e) => e.id == executorId)) {
+          executorId = null;
+        }
 
         if (descriptionController.text.trim() == initialDescription &&
             initialBrigade == (assignBrigade ? brigadeId : null)) {
@@ -423,20 +519,14 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
       });
       scheduleRecommendation();
     } on ApiException catch (error) {
-      if (!mounted) return;
-
+      if (!mounted || !selectionCurrent()) return;
       setState(() {
         loadingNormatives = false;
         loadingRecommendations = false;
       });
-
       showMessage(context, error.message);
     } catch (error) {
-      if (!mounted ||
-          equipmentId != newEquipmentId ||
-          selectionVersion != equipmentVersion) {
-        return;
-      }
+      if (!mounted || !selectionCurrent()) return;
       setState(() {
         loadingNormatives = false;
         loadingRecommendations = false;
@@ -557,16 +647,17 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
   // MARK: Photos
 
   Future<void> restorePhotos() async {
+    final version = photoRecoveryVersion;
     try {
       final restored = await photoPicker.takeRecoveredPhotos();
 
-      if (!mounted) return;
+      if (!mounted || version != photoRecoveryVersion) return;
 
       setState(() {
         photos.addAll(restored.take(5 - photos.length));
       });
     } finally {
-      if (mounted) {
+      if (mounted && version == photoRecoveryVersion) {
         setState(() {
           pickingPhotos = false;
         });
@@ -623,12 +714,19 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
 
   Future<void> selectDeadline() async {
     final now = DateTime.now();
-
+    final firstDate = DateUtils.dateOnly(now);
+    final lastDate = DateTime(now.year, now.month, now.day + 365);
+    final savedDate = DateUtils.dateOnly(deadline.toLocal());
+    final initialDate = savedDate.isBefore(firstDate)
+        ? firstDate
+        : savedDate.isAfter(lastDate)
+        ? lastDate
+        : savedDate;
     final date = await showDatePicker(
       context: context,
-      initialDate: deadline,
-      firstDate: DateTime(now.year, now.month, now.day),
-      lastDate: now.add(const Duration(days: 365)),
+      initialDate: initialDate,
+      firstDate: firstDate,
+      lastDate: lastDate,
       helpText: uiText(context, 'Срок исполнения'),
       cancelText: uiText(context, 'Отмена'),
       confirmText: uiText(context, 'Выбрать'),
@@ -666,7 +764,14 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
   // MARK: Create order
 
   Future<void> submit() async {
-    if (creating || pickingPhotos || loadingReferences || voiceBusy) {
+    if (issued ||
+        discardingDraft ||
+        creating ||
+        pickingPhotos ||
+        loadingReferences ||
+        !draftRestored ||
+        draftLoadFailed ||
+        voiceBusy) {
       return;
     }
 
@@ -718,6 +823,28 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
     });
 
     try {
+      // Capture the form before uploading; a disposed form cannot be read later.
+      final beforePhotoUrls = <String>[];
+      final input = CreateWorkOrderInput(
+        type: type,
+        description: descriptionController.text.trim(),
+        areaId: selectedAreaId,
+        equipmentId: selectedEquipmentId,
+        assigneeId: assignBrigade ? null : selectedExecutorId,
+        brigadeId: assignBrigade ? brigadeId : null,
+        priority: priority,
+        normativeId: normativeId,
+        faultCodeId: faultCodeId,
+        deadline: customDeadline
+            ? deadline.toUtc()
+            : normativeId != null
+            ? null
+            : DateTime.now().add(Duration(hours: deadlineHours)).toUtc(),
+        comment: commentController.text.trim().isEmpty
+            ? null
+            : commentController.text.trim(),
+        beforePhotoUrls: beforePhotoUrls,
+      );
       // Сначала загружаем фотографии.
       //
       // POST /api/uploads не является
@@ -733,44 +860,24 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
           )
           .toList(growable: false);
 
-      final beforePhotoUrls = uploadFiles.isEmpty
-          ? <String>[]
-          : await widget.api.uploads.uploadPhotoUrls(uploadFiles);
+      if (uploadFiles.isNotEmpty) {
+        beforePhotoUrls.addAll(
+          await widget.api.uploads.uploadPhotoUrls(uploadFiles),
+        );
+      }
       // Затем создаём сам наряд.
       //
       // POST /api/work-orders также
       // нельзя автоматически повторять.
-      final created = await widget.api.workOrders.createWorkOrder(
-        CreateWorkOrderInput(
-          type: type,
-          description: descriptionController.text.trim(),
-          areaId: selectedAreaId,
-          equipmentId: selectedEquipmentId,
-          assigneeId: assignBrigade ? null : selectedExecutorId,
-          brigadeId: assignBrigade ? brigadeId : null,
-          priority: priority,
-          normativeId: normativeId,
-          faultCodeId: faultCodeId,
-          deadline: customDeadline
-              ? deadline.toUtc()
-              : normativeId != null
-              ? null
-              : DateTime.now().add(Duration(hours: deadlineHours)).toUtc(),
-          comment: commentController.text.trim().isEmpty
-              ? null
-              : commentController.text.trim(),
-          beforePhotoUrls: beforePhotoUrls,
-        ),
-      );
+      final created = await widget.api.workOrders.createWorkOrder(input);
 
-      if (!mounted) return;
-
+      // Server acknowledgement must clear the draft even after route removal.
       issued = true;
       draftTimer?.cancel();
       await draftWrites;
       if (draftStorage != null && draftKey != null) {
         try {
-          await draftStorage!.write(draftKey!, []);
+          await creationDraftStorage!.clearSubmitted();
         } catch (_) {}
       }
       if (mounted) Navigator.pop(context, created.id);
@@ -905,11 +1012,14 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
           ),
         ),
       ),
-      child: Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(title: Text(uiText(context, 'Создание наряда'))),
-        bottomNavigationBar: _buildBottomBar(),
-        body: _buildBody(),
+      child: PopScope(
+        canPop: !creating && !discardingDraft,
+        child: Scaffold(
+          backgroundColor: Colors.white,
+          appBar: AppBar(title: Text(uiText(context, 'Создание наряда'))),
+          bottomNavigationBar: _buildBottomBar(),
+          body: _buildBody(),
+        ),
       ),
     );
   }
@@ -938,8 +1048,12 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
                         )
                       : null,
                   onPressed:
-                      creating ||
+                      issued ||
+                          discardingDraft ||
+                          creating ||
                           loadingReferences ||
+                          !draftRestored ||
+                          draftLoadFailed ||
                           pickingPhotos ||
                           voiceBusy ||
                           missingInput != null
@@ -978,7 +1092,9 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
 
     if (pageError != null) {
       return BackendRefreshView(
-        onRefresh: loadInitialData,
+        onRefresh: () async {
+          if (!discardingDraft) await loadInitialData();
+        },
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -989,10 +1105,19 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
               Text(pageError!, textAlign: TextAlign.center),
               const SizedBox(height: 16),
               FilledButton.icon(
-                onPressed: loadInitialData,
+                onPressed: discardingDraft ? null : loadInitialData,
                 icon: const Icon(Icons.replay),
                 label: Text(uiText(context, 'Повторить')),
               ),
+              if (draftLoadFailed) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  key: const ValueKey('discard-order-draft'),
+                  onPressed: discardingDraft ? null : discardDraft,
+                  icon: const Icon(Icons.delete_outline),
+                  label: Text(strings(context).discardOrderDraftAction),
+                ),
+              ],
             ],
           ),
         ),

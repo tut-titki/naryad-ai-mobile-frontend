@@ -1605,12 +1605,20 @@ class _EditOrderDialogState extends State<_EditOrderDialog> {
     final now = DateTime.now();
 
     final current = deadline ?? now.add(const Duration(hours: 2));
+    final firstDate = DateUtils.dateOnly(now.subtract(const Duration(days: 1)));
+    final lastDate = DateUtils.dateOnly(now.add(const Duration(days: 365 * 2)));
+    final savedDate = DateUtils.dateOnly(current.toLocal());
+    final initialDate = savedDate.isBefore(firstDate)
+        ? firstDate
+        : savedDate.isAfter(lastDate)
+        ? lastDate
+        : savedDate;
 
     final date = await showDatePicker(
       context: context,
-      initialDate: current,
-      firstDate: now.subtract(const Duration(days: 1)),
-      lastDate: now.add(const Duration(days: 365 * 2)),
+      initialDate: initialDate,
+      firstDate: firstDate,
+      lastDate: lastDate,
     );
 
     if (date == null || !mounted) {

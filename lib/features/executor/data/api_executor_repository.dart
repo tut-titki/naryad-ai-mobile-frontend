@@ -17,6 +17,18 @@ import 'execution_draft_storage.dart';
 import '../models/executor_order_actions.dart';
 import 'package:crypto/crypto.dart';
 
+class _QueueSyncResult {
+  const _QueueSyncResult(
+    this.permanentErrors, [
+    this.blockingError,
+    this.appliedActions = const {},
+  ]);
+
+  final Map<String, ApiException> permanentErrors;
+  final Object? blockingError;
+  final Set<String> appliedActions;
+}
+
 class ApiExecutorRepository extends ChangeNotifier
     implements ExecutorRepository {
   ApiExecutorRepository({
@@ -32,7 +44,7 @@ class ApiExecutorRepository extends ChangeNotifier
   final ExecutorApi api;
   final ExecutionDraftStorage draftStorage;
   final PendingActionStorage actionStorage;
-  Future<void>? _syncFuture;
+  Future<_QueueSyncResult>? _syncFuture;
   bool _hasLoaded = false;
   bool get hasLoaded => _hasLoaded;
   Timer? _queueTimer;
@@ -42,6 +54,23 @@ class ApiExecutorRepository extends ChangeNotifier
   int _notificationRevision = 0;
   Future<void>? _notificationLoading;
   final _orderVersion = <int, int>{};
+  final _orderStateVersion = <int, int>{};
+  final _orderUpdatedAt = <int, DateTime>{};
+
+  void _recordOrderState(int id, [DateTime? updatedAt]) {
+    _orderStateVersion[id] = (_orderStateVersion[id] ?? 0) + 1;
+    if (updatedAt == null) {
+      _orderUpdatedAt.remove(id);
+    } else {
+      _orderUpdatedAt[id] = updatedAt;
+    }
+  }
+
+  DateTime? _updatedAt(ExecutorOrderDto dto) {
+    final value = dto.details['updatedAt'];
+    return value is String ? DateTime.tryParse(value)?.toUtc() : null;
+  }
+
   int _nextOrderVersion(int id) {
     final version = (_orderVersion[id] ?? 0) + 1;
     _orderVersion[id] = version;
@@ -272,6 +301,7 @@ class ApiExecutorRepository extends ChangeNotifier
 
   void _removeUnavailable(WorkOrder order, ApiException error) {
     _nextOrderVersion(order.apiId!);
+    _recordOrderState(order.apiId!);
     order.accessErrorStatus = error.status;
     order.accessErrorMessage = error.message;
     _active.remove(order.apiId);
@@ -591,6 +621,7 @@ class ApiExecutorRepository extends ChangeNotifier
       OrderStatus.rejected,
     }.contains(order.status);
     (archived ? _history : _active)[dto.id] = order;
+    _recordOrderState(dto.id, _updatedAt(dto));
     _nextOrderVersion(dto.id);
     return order;
   }
@@ -747,7 +778,7 @@ class ApiExecutorRepository extends ChangeNotifier
     }
   }
 
-  Future<void> _send(
+  Future<bool> _send(
     int employeeId,
     WorkOrder order,
     Map<String, dynamic> body,
@@ -756,9 +787,40 @@ class ApiExecutorRepository extends ChangeNotifier
     final actions = await actionStorage.load();
     final same = actions.where(
       (a) =>
-          a.orderNumber == order.apiId && a.payload['action'] == body['action'],
+          a.type == 'workOrderAction' &&
+          a.orderNumber == order.apiId &&
+          a.payload['action'] == body['action'],
     );
     final existing = same.firstOrNull;
+    final actionName = body['action'] as String;
+    if (existing != null &&
+        (actionName == 'PAUSE' || actionName == 'REJECT') &&
+        existing.payload['comment'] != body['comment']) {
+      await actionStorage.add(
+        PendingAction(
+          id: _reasonDraftId(employeeId, order.apiId!, actionName),
+          employeeId: employeeId,
+          orderNumber: order.apiId!,
+          type: 'actionReasonDraft',
+          payload: {'action': actionName, 'comment': body['comment']},
+          createdAt: now,
+        ),
+      );
+      _notify();
+      throw ApiException(
+        409,
+        _user.language == 'kk'
+            ? 'Алдыңғы әрекет жіберілуді күтуде. Жаңа себеп сақталды.'
+            : 'Предыдущее действие ожидает отправки. Новая причина сохранена.',
+      );
+    }
+    if (existing != null &&
+        (actionName == 'PAUSE' || actionName == 'REJECT') &&
+        existing.payload['comment'] == body['comment']) {
+      await actionStorage.remove(
+        _reasonDraftId(employeeId, order.apiId!, actionName),
+      );
+    }
     if (body['action'] == 'COMPLETE' &&
         existing != null &&
         existing.payload['_reportVersion'] != body['_reportVersion']) {
@@ -787,22 +849,71 @@ class ApiExecutorRepository extends ChangeNotifier
     // An existing sync may have taken its snapshot before this action was added.
     do {
       if (!_sessionActive) throw const ApiException(403, 'Недостаточно прав');
-      await syncPendingActions();
+      final result = await _runQueue();
+      final ownError = result.permanentErrors[action.id];
+      if (ownError != null) throw ownError;
+      if (!(await actionStorage.load()).any((item) => item.id == action.id)) {
+        return result.appliedActions.contains(action.id);
+      }
+      if (result.blockingError != null) throw result.blockingError!;
     } while ((await actionStorage.load()).any((item) => item.id == action.id));
+    return false;
   }
 
-  Future<void> syncPendingActions() =>
+  String _reasonDraftId(int employeeId, int orderId, String action) =>
+      'reason-draft-$employeeId-$orderId-$action';
+
+  @override
+  Future<String?> restoreActionReason(
+    int employeeId,
+    WorkOrder order,
+    OrderStatus status,
+  ) async {
+    _checkOrder(employeeId, order);
+    final action = status == OrderStatus.paused ? 'PAUSE' : 'REJECT';
+    final actions = await actionStorage.load();
+    final draftId = _reasonDraftId(employeeId, order.apiId!, action);
+    final draft = actions.where((item) => item.id == draftId).firstOrNull;
+    if (draft != null) return draft.payload['comment'] as String?;
+    final pending = actions
+        .where(
+          (item) =>
+              item.type == 'workOrderAction' &&
+              item.orderNumber == order.apiId &&
+              item.payload['action'] == action,
+        )
+        .firstOrNull;
+    return pending?.payload['comment'] as String?;
+  }
+
+  Future<_QueueSyncResult> _runQueue() =>
       _syncFuture ??= _syncQueue().whenComplete(() {
         _syncFuture = null;
       });
 
-  Future<void> _syncQueue() async {
+  Future<void> syncPendingActions() async {
+    final result = await _runQueue();
+    if (result.blockingError != null) throw result.blockingError!;
+    if (result.permanentErrors.isNotEmpty) {
+      throw result.permanentErrors.values.first;
+    }
+  }
+
+  Future<_QueueSyncResult> _syncQueue() async {
     final actions = await actionStorage.load();
-    ApiException? permanentError;
+    final permanentErrors = <String, ApiException>{};
+    final appliedActions = <String>{};
     for (final action in actions) {
-      if (!_sessionActive || action.employeeId != _user.id) return;
+      if (!_sessionActive || action.employeeId != _user.id) {
+        return _QueueSyncResult(permanentErrors, null, appliedActions);
+      }
+      if (action.type == 'actionReasonDraft') continue;
       if (action.type != 'workOrderAction') {
-        throw StateError('Unsupported queued action');
+        return _QueueSyncResult(
+          permanentErrors,
+          StateError('Unsupported queued action'),
+          appliedActions,
+        );
       }
       final body = Map<String, dynamic>.from(action.payload);
       final submittedVersion = body.remove('_reportVersion') as String?;
@@ -829,7 +940,9 @@ class ApiExecutorRepository extends ChangeNotifier
         }
         var order = _active[action.orderNumber] ?? _history[action.orderNumber];
         order ??= (await api.loadOrder(action.orderNumber)).toWorkOrder();
-        await _sendOnline(action.employeeId, order, body, action.id);
+        if (await _sendOnline(action.employeeId, order, body, action.id)) {
+          appliedActions.add(action.id);
+        }
         await actionStorage.remove(action.id);
         if (body['action'] == 'COMPLETE') {
           try {
@@ -843,42 +956,48 @@ class ApiExecutorRepository extends ChangeNotifier
           }
         }
       } on ApiException catch (e) {
-        if ({400, 403, 404, 409}.contains(e.status)) {
+        if ({400, 403, 404, 409, 413, 422}.contains(e.status)) {
           await actionStorage.remove(action.id);
           _error = _user.language == 'kk'
               ? 'Әрекет қолданылмады: ${e.message}'
               : 'Действие не применено: ${e.message}';
           _notify();
-          permanentError ??= e;
+          permanentErrors[action.id] = e;
           continue;
         }
         _error = _user.language == 'kk'
             ? 'Телефонда сақталды. Жіберуді күтіп тұр.'
             : 'Сохранено на телефоне. Ожидает отправки.';
         _notify();
-        rethrow;
+        return _QueueSyncResult(permanentErrors, e, appliedActions);
       } catch (_) {
         _error = _user.language == 'kk'
             ? 'Телефонда сақталды. Жіберуді күтіп тұр.'
             : 'Сохранено на телефоне. Ожидает отправки.';
         _notify();
-        throw ApiException(0, _error!);
+        return _QueueSyncResult(
+          permanentErrors,
+          ApiException(0, _error!),
+          appliedActions,
+        );
       }
     }
-    if (permanentError != null) throw permanentError;
-    if (actions.isNotEmpty) {
+    if (actions.isNotEmpty && permanentErrors.isEmpty) {
       _error = null;
       _notify();
     }
+    return _QueueSyncResult(permanentErrors, null, appliedActions);
   }
 
-  Future<void> _sendOnline(
+  Future<bool> _sendOnline(
     int employeeId,
     WorkOrder order,
     Map<String, dynamic> body,
     String id,
   ) async {
     _checkOrder(employeeId, order);
+    final orderId = order.apiId!;
+    final stateVersion = _orderStateVersion[orderId] ?? 0;
     try {
       final response = await api.action(order.apiId!, {
         ...body,
@@ -889,26 +1008,52 @@ class ApiExecutorRepository extends ChangeNotifier
         data['aiAssessment'] = response['assessment'];
       }
       final dto = ExecutorOrderDto.fromJson(data);
-      final oldStatus = order.status;
-      _store(dto, existing: order);
+      // Acknowledgement removes the queued action even if its snapshot is stale.
+      if (!_sessionActive) return false;
+      _revision++;
+      final current = _active[orderId] ?? _history[orderId] ?? order;
+      if (current.accessErrorStatus == 403 ||
+          current.accessErrorStatus == 404) {
+        return false;
+      }
+      final responseTime = _updatedAt(dto);
+      final latestTime = _orderUpdatedAt[orderId];
+      if (responseTime != null &&
+          latestTime != null &&
+          responseTime.isBefore(latestTime)) {
+        return false;
+      }
+      if (stateVersion != (_orderStateVersion[orderId] ?? 0) &&
+          (responseTime == null ||
+              latestTime == null ||
+              !responseTime.isAfter(latestTime))) {
+        // Equal/missing timestamps cannot establish which concurrent state is newer.
+        try {
+          await loadExecutorOrder(employeeId, current);
+        } catch (_) {
+          // Keep the confirmed state; an acknowledged action must not be retried.
+        }
+        return false;
+      }
+      final oldStatus = current.status;
+      _store(dto, existing: current);
       // Action responses can omit events; preserve the timer until detail refresh succeeds.
       if (!dto.details.containsKey('events') &&
-          oldStatus != order.status &&
+          oldStatus != current.status &&
           dto.details['updatedAt'] is String) {
-        order.history.add(
+        current.history.add(
           OrderEvent(
-            title: order.status.label,
+            title: current.status.label,
             author: _user.fullName,
             time: DateTime.parse(dto.details['updatedAt'] as String).toLocal(),
-            status: order.status,
+            status: current.status,
             kind: OrderEventKind.status,
             reason: body['comment'] as String? ?? '',
           ),
         );
       }
-      _revision++;
-
       _notify();
+      return true;
     } on ApiException catch (e) {
       if (e.status == 409) {
         try {
@@ -955,6 +1100,16 @@ class ApiExecutorRepository extends ChangeNotifier
       'action': action,
       if (reason.trim().isNotEmpty) 'comment': reason.trim(),
     });
+    if (action == 'PAUSE' || action == 'REJECT') {
+      final draftId = _reasonDraftId(employeeId, order.apiId!, action);
+      final saved = (await actionStorage.load())
+          .where((item) => item.id == draftId)
+          .firstOrNull;
+      if (saved != null && saved.payload['comment'] == reason.trim()) {
+        await actionStorage.remove(draftId);
+        _notify();
+      }
+    }
   }
 
   @override
@@ -994,7 +1149,7 @@ class ApiExecutorRepository extends ChangeNotifier
     final submittedVersion = _reportVersion(report);
 
     await saveExecutionDraft(employeeId, order.number, report);
-    await _send(employeeId, order, {
+    final applied = await _send(employeeId, order, {
       'action': 'COMPLETE',
       '_reportVersion': submittedVersion,
       'completionText': report.work.trim(),
@@ -1012,10 +1167,12 @@ class ApiExecutorRepository extends ChangeNotifier
       'materials': materials,
       if (report.comment.trim().isNotEmpty) 'comment': report.comment.trim(),
     });
-    order.afterImages
-      ..clear()
-      ..addAll(report.photos);
-    order.afterPhotos = report.photos.length;
+    if (applied) {
+      order.afterImages
+        ..clear()
+        ..addAll(report.photos);
+      order.afterPhotos = report.photos.length;
+    }
     // A cleanup failure must never turn an acknowledged COMPLETE into a second submission.
     try {
       await _clearSubmittedDraft(employeeId, order.number, submittedVersion);

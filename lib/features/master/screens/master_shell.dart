@@ -228,9 +228,11 @@ class _MasterShellState extends State<MasterShell> {
                       ? Colors.white
                       : const Color(0xFF172B4D),
                   flexibleSpace: page == 4
-                      ? const DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: AppColors.profileHeaderGradient,
+                      ? SizedBox.expand(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: AppColors.profileHeaderGradient,
+                            ),
                           ),
                         )
                       : null,

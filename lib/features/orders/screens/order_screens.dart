@@ -160,6 +160,22 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
     if (state != AppLifecycleState.resumed && !issued) saveDraft();
   }
 
+  String _executorStatusDetails(ExecutorReference item) {
+    final status = !item.isOnShift
+        ? EmployeeStatus.offShift.label
+        : item.employeeStatus.label;
+    return [
+      uiText(context, status),
+      if (item.currentOrder != null) '№${item.currentOrder!.number}',
+      if (item.queue > 0)
+        backendText(
+          context,
+          'В очереди: ${item.queue}',
+          'Кезекте: ${item.queue}',
+        ),
+    ].join(' ');
+  }
+
   Future<void> restoreDraft() async {
     draftLoadFailed = false;
     final owner = AuthScope.maybeOf(context)?.user?.id;
@@ -1371,6 +1387,15 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
     if (equipmentId == null) return const SizedBox.shrink();
     final fault = faultCodes.where((f) => f.id == faultCodeId).firstOrNull;
     final norm = normatives.where((n) => n.id == normativeId).firstOrNull;
+    final summaryDeadline = customDeadline
+        ? deadline
+        : DateTime.now().add(
+            Duration(
+              minutes: ((norm?.hoursValue ?? deadlineHours) * 60).round(),
+            ),
+          );
+    final summaryDeadlineLabel =
+        '${dateLabel(summaryDeadline)} · ${timeLabel(summaryDeadline)}';
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       padding: const EdgeInsets.all(16),
@@ -1413,8 +1438,8 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
           Text(
             backendText(
               context,
-              'До ${timeLabel(customDeadline ? deadline : DateTime.now().add(Duration(minutes: ((norm?.hoursValue ?? deadlineHours) * 60).round())))}',
-              '${timeLabel(customDeadline ? deadline : DateTime.now().add(Duration(minutes: ((norm?.hoursValue ?? deadlineHours) * 60).round())))} дейін',
+              'До $summaryDeadlineLabel',
+              '$summaryDeadlineLabel дейін',
             ),
           ),
         ],
@@ -1727,16 +1752,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
               placeholder: uiText(context, 'Выберите исполнителя'),
               value: executorId == null ? null : findExecutor(executorId!),
               label: (item) => item.fullName,
-              details: (item) => [
-                uiText(context, item.statusLabel),
-                if (item.currentOrder != null) '№${item.currentOrder!.number}',
-                if (item.queue > 0)
-                  backendText(
-                    context,
-                    'В очереди: ${item.queue}',
-                    'Кезекте: ${item.queue}',
-                  ),
-              ].join(' · '),
+              details: _executorStatusDetails,
               icon: Icons.person_outline,
               onTap: creating ? null : _selectExecutor,
             ),
@@ -1951,15 +1967,9 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
       items: ordered,
       label: (item) => item.fullName,
       details: (item) => [
-        if (item.specialty != null) uiText(context, item.specialty!),
-        uiText(context, item.statusLabel),
-        if (item.currentOrder != null) '№${item.currentOrder!.number}',
-        if (item.queue > 0)
-          backendText(
-            context,
-            'В очереди: ${item.queue}',
-            'Кезекте: ${item.queue}',
-          ),
+        if (item.specialty?.trim().isNotEmpty == true)
+          uiText(context, item.specialty!.trim()),
+        _executorStatusDetails(item),
       ].join(' · '),
       enabled: (_) => true,
       selected: (item) => item.id == executorId,
@@ -1997,16 +2007,22 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
               ),
             ],
             selected: {useNormative},
-            onSelectionChanged: (value) {
-              setState(() {
-                useNormative = value.first;
-                manualWork = true;
-                if (!useNormative) {
-                  normativeId = null;
-                  customDeadline = true;
-                }
-              });
-            },
+            onSelectionChanged: creating
+                ? null
+                : (value) {
+                    setState(() {
+                      useNormative = value.first;
+                      manualWork = true;
+                      customDeadline = !useNormative;
+                      if (!useNormative) {
+                        normativeId = null;
+                        final now = DateTime.now();
+                        if (!deadline.isAfter(now)) {
+                          deadline = now.add(Duration(hours: deadlineHours));
+                        }
+                      }
+                    });
+                  },
           ),
 
           const SizedBox(height: 16),
@@ -2078,7 +2094,11 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
             initialValue: faultCodeId,
             isExpanded: true,
             decoration: InputDecoration(
-              labelText: uiText(context, 'Шифр неисправности (необязательно)'),
+              labelText: backendText(
+                context,
+                'Код неисправности (необязательно)',
+                'Ақау коды (міндетті емес)',
+              ),
             ),
             items: [
               DropdownMenuItem<int>(

@@ -26,6 +26,7 @@ class _MasterChatScreenState extends State<MasterChatScreen> {
   List<_ChatMessage> _messages = [];
   bool _loading = true;
   bool _sending = false;
+  bool _validateInput = false;
   Object? _historyError;
   Object? _sendError;
 
@@ -72,7 +73,9 @@ class _MasterChatScreenState extends State<MasterChatScreen> {
   }
 
   Future<void> _send() async {
-    if (_sending || _loading || !(_form.currentState?.validate() ?? false)) {
+    if (_sending || _loading) return;
+    setState(() => _validateInput = true);
+    if (!(_form.currentState?.validate() ?? false)) {
       return;
     }
     final message = _input.text.trim();
@@ -88,6 +91,7 @@ class _MasterChatScreenState extends State<MasterChatScreen> {
           _ChatMessage(message, fromMaster: true),
           _ChatMessage(reply.answer, fromMaster: false),
         ]);
+        _validateInput = false;
         _input.clear();
       });
       _scrollToLatest();
@@ -181,6 +185,9 @@ class _MasterChatScreenState extends State<MasterChatScreen> {
           top: false,
           child: Form(
             key: _form,
+            autovalidateMode: _validateInput
+                ? AutovalidateMode.onUserInteraction
+                : AutovalidateMode.disabled,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,

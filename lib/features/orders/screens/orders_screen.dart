@@ -228,7 +228,13 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
   // MARK: Filter
 
-  List<WorkOrderApiModel> get filteredOrders => _applyFilters(orders);
+  List<WorkOrderApiModel> get filteredOrders {
+    final filtered = _applyFilters(orders);
+    return [
+      ...filtered.where((order) => !order.status.isFinished),
+      ...filtered.where((order) => order.status.isFinished),
+    ];
+  }
 
   List<WorkOrderApiModel> _applyFilters(Iterable<WorkOrderApiModel> source) {
     final query = searchController.text.trim().toLowerCase();

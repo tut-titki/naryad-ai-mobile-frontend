@@ -404,6 +404,23 @@ class _OrderTile extends StatelessWidget {
     required this.now,
   });
 
+  String _overdueLabel(BuildContext context) {
+    final seconds = now.difference(order.deadline).inSeconds;
+    final totalMinutes = seconds <= 0 ? 1 : (seconds + 59) ~/ 60;
+    final days = totalMinutes ~/ 1440;
+    final hours = (totalMinutes % 1440) ~/ 60;
+    final minutes = totalMinutes % 60;
+    final kk = Localizations.localeOf(context).languageCode == 'kk';
+
+    final parts = [
+      if (days > 0) '$days ${kk ? 'күн' : 'д'}',
+      if (hours > 0) '$hours ${kk ? 'сағ' : 'ч'}',
+      if (minutes > 0) '$minutes мин',
+    ];
+    final duration = parts.join(' ');
+    return kk ? 'Кешігу: $duration' : ' $duration';
+  }
+
   @override
   Widget build(BuildContext context) {
     final overdue = order.isOverdue(now);
@@ -436,56 +453,58 @@ class _OrderTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 10,
+                  runSpacing: 6,
                   children: [
-                    Flexible(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: statusColor.withValues(alpha: .10),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (order.status == OrderStatus.paused) ...[
-                              Icon(
-                                LucideIcons.pause,
-                                size: 13,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: .10),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (order.status == OrderStatus.paused) ...[
+                            Icon(
+                              LucideIcons.pause,
+                              size: 13,
+                              color: statusColor,
+                            ),
+                            const SizedBox(width: 5),
+                          ],
+                          Flexible(
+                            child: Text(
+                              executorStatusText(context, order),
+                              maxLines: 1,
+                              softWrap: false,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
                                 color: statusColor,
                               ),
-                              const SizedBox(width: 5),
-                            ],
-                            Flexible(
-                              child: Text(
-                                executorStatusText(context, order),
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: statusColor,
-                                ),
-                              ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
-
-                    const SizedBox(width: 10),
-                    Flexible(
-                      flex: 2,
-                      child: Text(
-                        strings(context).orderNumber(order.displayNumber),
-                        textAlign: TextAlign.end,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF344866),
-                        ),
+                    Text(
+                      strings(context).orderNumber(order.displayNumber),
+                      textAlign: TextAlign.end,
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF344866),
                       ),
                     ),
                   ],
@@ -546,11 +565,13 @@ class _OrderTile extends StatelessWidget {
                           color: Color(0xFF01408B),
                         ),
                         const SizedBox(width: 6),
-                        Text(
-                          '${dateLabel(order.deadline)} · ${timeLabel(order.deadline)}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: overdue ? accent : const Color(0xFF637B9E),
+                        Flexible(
+                          child: Text(
+                            '${dateLabel(order.deadline)} · ${timeLabel(order.deadline)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: overdue ? accent : const Color(0xFF637B9E),
+                            ),
                           ),
                         ),
                       ],
@@ -576,9 +597,9 @@ class _OrderTile extends StatelessWidget {
                       const SizedBox(width: 7),
                       Expanded(
                         child: Text(
-                          strings(context).overdueByMinutes(
-                            '${(now.difference(order.deadline).inSeconds + 59) ~/ 60}',
-                          ),
+                          strings(
+                            context,
+                          ).overdueByMinutes(_overdueLabel(context)),
                           style: TextStyle(
                             fontSize: 12,
                             color: accent,

@@ -4,10 +4,43 @@ import 'package:mineral/core/theme/app_theme.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mineral/features/executor/screens/executor_screen.dart';
 import 'package:mineral/features/executor/screens/executor_result_screen.dart';
+import 'package:mineral/features/executor/screens/executor_profile_screen.dart';
+import 'package:mineral/features/executor/widgets/executor_greeting.dart';
 import 'package:mineral/shared/data/demo_store.dart';
 import 'package:mineral/shared/models/models.dart';
 
 void main() {
+  testWidgets(
+    'data update during a tab fade keeps outgoing content on its own page',
+    (tester) async {
+      final store = NavigationStore();
+      addTearDown(store.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildAppTheme(),
+          home: ExecutorScreen(
+            store: store,
+            employeeId: 1,
+            refreshOnOpen: false,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Профиль'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      store.changed();
+      await tester.pump();
+      expect(find.byType(ExecutorProfileScreen), findsOneWidget);
+      expect(find.byType(ExecutorGreeting), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpAndSettle();
+      expect(find.byType(ExecutorProfileScreen), findsOneWidget);
+      expect(find.byType(ExecutorGreeting), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   testWidgets('tabs separate history and open result with back navigation', (
     tester,
   ) async {
@@ -46,4 +79,8 @@ void main() {
     expect(find.text('Мои наряды'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+}
+
+class NavigationStore extends DemoStore {
+  void changed() => notifyListeners();
 }

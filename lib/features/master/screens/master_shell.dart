@@ -21,6 +21,8 @@ import 'package:mineral/l10n/ui_localization.dart';
 import 'package:mineral/shared/models/models.dart';
 import 'package:mineral/shared/widgets/ui.dart';
 import 'package:mineral/shared/widgets/backend_refresh_view.dart';
+import 'package:mineral/shared/widgets/app_navigation.dart';
+import 'package:mineral/shared/widgets/app_transition_page.dart';
 
 // MARK: - Master Shell
 
@@ -109,14 +111,6 @@ class _MasterShellState extends State<MasterShell> {
   // MARK: - Navigation
 
   static const labels = ['Обзор смены', 'Наряды', 'Отчёты', 'Чат', 'Профиль'];
-
-  static const icons = [
-    Icons.grid_view_rounded,
-    Icons.assignment_outlined,
-    Icons.bar_chart_rounded,
-    Icons.chat_bubble_outline,
-    Icons.person_outline,
-  ];
 
   // MARK: - Backend order
 
@@ -284,40 +278,11 @@ class _MasterShellState extends State<MasterShell> {
           // MARK: Mobile navigation
           bottomNavigationBar: desktop
               ? null
-              : NavigationBar(
+              : AppNavigation(
+                  items: AppNavigationItems.master,
                   selectedIndex: page,
-                  onDestinationSelected: (value) {
-                    setState(() {
-                      page = value;
-                    });
-                  },
-                  destinations: [
-                    NavigationDestination(
-                      icon: const Icon(Icons.grid_view_rounded),
-                      selectedIcon: const Icon(Icons.grid_view_rounded),
-                      label: uiText(context, 'Смена'),
-                    ),
-                    NavigationDestination(
-                      icon: const Icon(Icons.assignment_outlined),
-                      selectedIcon: const Icon(Icons.assignment),
-                      label: uiText(context, 'Наряды'),
-                    ),
-                    NavigationDestination(
-                      icon: const Icon(Icons.bar_chart_rounded),
-                      selectedIcon: const Icon(Icons.bar_chart_rounded),
-                      label: uiText(context, 'Отчёты'),
-                    ),
-                    NavigationDestination(
-                      icon: const Icon(Icons.chat_bubble_outline),
-                      selectedIcon: const Icon(Icons.chat_bubble),
-                      label: uiText(context, 'Чат'),
-                    ),
-                    NavigationDestination(
-                      icon: const Icon(Icons.person_outline),
-                      selectedIcon: const Icon(Icons.person),
-                      label: uiText(context, 'Профиль'),
-                    ),
-                  ],
+                  onDestinationSelected: (value) =>
+                      setState(() => page = value),
                 ),
 
           // MARK: Main layout
@@ -374,7 +339,9 @@ class _MasterShellState extends State<MasterShell> {
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              leading: Icon(icons[index]),
+                              leading: Icon(
+                                AppNavigationItems.master[index].$1,
+                              ),
                               title: Text(
                                 uiText(context, labels[index]),
                                 style: const TextStyle(
@@ -499,27 +466,30 @@ class _MasterShellState extends State<MasterShell> {
 
                     // MARK: Page
                     Expanded(
-                      child: page == 1 || page == 3
-                          ? content
-                          : BackendRefreshView(
-                              padding: page == 4
-                                  ? EdgeInsets.zero
-                                  : EdgeInsets.fromLTRB(
-                                      desktop ? 28 : 18,
-                                      desktop ? 28 : 18,
-                                      desktop ? 28 : 18,
-                                      page == 0 ? 96 : (desktop ? 28 : 18),
+                      child: AppTransitionPage(
+                        page: page,
+                        child: page == 1 || page == 3
+                            ? content
+                            : BackendRefreshView(
+                                padding: page == 4
+                                    ? EdgeInsets.zero
+                                    : EdgeInsets.fromLTRB(
+                                        desktop ? 28 : 18,
+                                        desktop ? 28 : 18,
+                                        desktop ? 28 : 18,
+                                        page == 0 ? 96 : (desktop ? 28 : 18),
+                                      ),
+                                child: Align(
+                                  alignment: Alignment.topCenter,
+                                  child: ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 1400,
                                     ),
-                              child: Align(
-                                alignment: Alignment.topCenter,
-                                child: ConstrainedBox(
-                                  constraints: const BoxConstraints(
-                                    maxWidth: 1400,
+                                    child: content,
                                   ),
-                                  child: content,
                                 ),
                               ),
-                            ),
+                      ),
                     ),
                   ],
                 ),

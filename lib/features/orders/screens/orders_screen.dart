@@ -228,10 +228,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
   // MARK: Filter
 
-  List<WorkOrderApiModel> get filteredOrders {
+  List<WorkOrderApiModel> get filteredOrders => _applyFilters(orders);
+
+  List<WorkOrderApiModel> _applyFilters(Iterable<WorkOrderApiModel> source) {
     final query = searchController.text.trim().toLowerCase();
 
-    return orders.where((order) {
+    return source.where((order) {
       if (statusFilter != null && order.status != statusFilter) {
         return false;
       }
@@ -680,7 +682,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
   }
 
   Widget _buildBoard() {
-    final query = searchController.text.trim().toLowerCase();
     const columns = [
       ('Выданные', 'issued'),
       ('Принятые', 'accepted'),
@@ -712,26 +713,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       key: ValueKey('kanban-column-${column.$2}'),
                       columnId: column.$2,
                       title: column.$1,
-                      orders: (boardData?.columns[column.$2] ?? [])
-                          .where(
-                            (order) =>
-                                query.isEmpty ||
-                                [
-                                      order.number,
-                                      order.description,
-                                      order.area.name,
-                                      order.equipment.name,
-                                      order.equipment.inventoryNumber,
-                                      order.assignee.fullName,
-                                      order.faultCode?.code,
-                                      order.faultCode?.name,
-                                    ]
-                                    .whereType<String>()
-                                    .join(' ')
-                                    .toLowerCase()
-                                    .contains(query),
-                          )
-                          .toList(),
+                      orders: _applyFilters(
+                        boardData?.columns[column.$2] ?? [],
+                      ),
                       onOrder: widget.onOrder,
                       movingOrders: _movingOrders,
                       submittingOrders: _submittingOrders,

@@ -1,3 +1,5 @@
+import 'package:mineral/shared/widgets/app_transition_page.dart';
+
 import 'executor_history_screen.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -15,6 +17,7 @@ import '../../notifications/screens/notifications_screen.dart';
 import 'package:mineral/l10n/ui_localization.dart';
 import 'package:mineral/features/executor/data/executor_repository.dart';
 import 'package:mineral/shared/models/models.dart';
+import 'package:mineral/shared/widgets/app_navigation.dart';
 
 class ExecutorScreen extends StatefulWidget {
   final ExecutorRepository store;
@@ -88,6 +91,7 @@ class _ExecutorScreenState extends State<ExecutorScreen> {
   @override
   Widget build(BuildContext context) {
     final employee = store.employee(employeeId);
+    final currentPage = _page;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
@@ -138,231 +142,226 @@ class _ExecutorScreenState extends State<ExecutorScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        height: 68,
-        backgroundColor: Colors.white,
-        indicatorColor: const Color(0xFFDFEBFA),
+      bottomNavigationBar: AppNavigation(
+        items: AppNavigationItems.executor,
         selectedIndex: _page,
-        onDestinationSelected: (p) => setState(() => _page = p),
-        destinations: [
-          NavigationDestination(
-            icon: const Icon(LucideIcons.clipboardList),
-            label: uiText(context, 'Наряды'),
-          ),
-          NavigationDestination(
-            icon: const Icon(LucideIcons.history),
-            label: uiText(context, 'История'),
-          ),
-          NavigationDestination(
-            icon: const Icon(LucideIcons.userRound),
-            label: uiText(context, 'Профиль'),
-          ),
-        ],
+        onDestinationSelected: (value) => setState(() => _page = value),
       ),
-      body: ListenableBuilder(
-        listenable: store,
-        builder: (context, _) {
-          if (_page == 2) {
-            return ExecutorProfileScreen(store: store, employeeId: employeeId);
-          }
-          if (store.loadError != null && store.assignedTo(employeeId).isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(uiText(context, _refreshError ?? store.loadError!)),
-                  TextButton(
-                    onPressed: _refresh,
-                    child: Text(uiText(context, 'Повторить')),
-                  ),
-                ],
-              ),
-            );
-          }
-          if (_page == 1) {
-            return ExecutorHistoryScreen(
-              orders: store.assignedTo(employeeId),
-              now: store.now,
-              onRefresh: _refresh,
-              onOpen: _openOrder,
-              loadTime: (order) =>
-                  store.loadExecutorOrderTime(employeeId, order),
-              error: _refreshError ?? store.loadError,
-              isLoading:
-                  store.isLoading && store.assignedTo(employeeId).isEmpty,
-            );
-          }
-          final orders = store.assignedTo(employeeId).where((order) {
-            final archived = {
-              OrderStatus.closed,
-              OrderStatus.cancelled,
-              OrderStatus.rejected,
-            }.contains(order.status);
-            return _page == 1 ? archived : !archived;
-          }).toList();
-          orders.sort((a, b) {
-            if (_page == 1) {
-              return (b.finishedAt ?? b.createdAt).compareTo(
-                a.finishedAt ?? a.createdAt,
+      body: AppTransitionPage(
+        page: _page,
+        child: ListenableBuilder(
+          listenable: store,
+          builder: (context, _) {
+            if (currentPage == 2) {
+              return ExecutorProfileScreen(
+                store: store,
+                employeeId: employeeId,
               );
             }
-            return ExecutorOrderQueue.compare(a, b);
-          });
-
-          final queue = ExecutorOrderQueue(orders);
-          final visible = orders
-              .where(
-                (o) =>
-                    ('${o.displayNumber} ${o.title} ${o.equipment} ${uiText(context, o.title)} ${uiText(context, o.equipment)}'
-                        .toLowerCase()
-                        .contains(_query.trim().toLowerCase())),
-              )
-              .toList();
-          return AppRefreshIndicator(
-            onRefresh: _refresh,
-            isLoading: store.isLoading && store.assignedTo(employeeId).isEmpty,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              children: [
-                if (_page == 0)
-                  ExecutorGreeting(
-                    employee: employee,
-                    time: store.now,
-                    orders: store.assignedTo(employeeId),
-                  )
-                else
-                  Text(
-                    uiText(
-                      context,
-                      'Завершённые, отменённые и отклонённые наряды',
+            if (store.loadError != null &&
+                store.assignedTo(employeeId).isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(uiText(context, _refreshError ?? store.loadError!)),
+                    TextButton(
+                      onPressed: _refresh,
+                      child: Text(uiText(context, 'Повторить')),
                     ),
-                    style: const TextStyle(
-                      color: Color(0xFF687385),
-                      height: 1.5,
-                    ),
-                  ),
-                const SizedBox(height: 16),
-                if (store.loadError != null || _refreshError != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: Text(
-                      uiText(context, store.loadError ?? _refreshError!),
-                      style: const TextStyle(color: Colors.red),
-                    ),
-                  ),
-                TextField(
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: Color(0xFFE5E8ED)),
-                    ),
-                    hintText: uiText(
-                      context,
-                      'Поиск по номеру или оборудованию',
-                    ),
-                    prefixIcon: const Icon(
-                      LucideIcons.search,
-                      size: 19,
-                      color: Color(0xFF637B9E),
-                    ),
-                    hintStyle: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF637B9E),
-                    ),
-                  ),
-                  onChanged: (v) => setState(() => _query = v),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                if (visible.isEmpty)
-                  Text(
-                    orders.isNotEmpty
-                        ? uiText(context, 'По вашему запросу ничего не найдено')
-                        : _page == 1
-                        ? uiText(context, 'История пока пуста')
-                        : uiText(context, 'Нет активных нарядов'),
-                  ),
-                if (_page == 1)
-                  for (final order in visible) ...[
-                    ExecutorHistoryTile(
-                      order: order,
-                      now: store.now,
-                      onTap: () => _openOrder(order),
+              );
+            }
+            if (currentPage == 1) {
+              return ExecutorHistoryScreen(
+                orders: store.assignedTo(employeeId),
+                now: store.now,
+                onRefresh: _refresh,
+                onOpen: _openOrder,
+                loadTime: (order) =>
+                    store.loadExecutorOrderTime(employeeId, order),
+                error: _refreshError ?? store.loadError,
+                isLoading:
+                    store.isLoading && store.assignedTo(employeeId).isEmpty,
+              );
+            }
+            final orders = store.assignedTo(employeeId).where((order) {
+              final archived = {
+                OrderStatus.closed,
+                OrderStatus.cancelled,
+                OrderStatus.rejected,
+              }.contains(order.status);
+              return currentPage == 1 ? archived : !archived;
+            }).toList();
+            orders.sort((a, b) {
+              if (currentPage == 1) {
+                return (b.finishedAt ?? b.createdAt).compareTo(
+                  a.finishedAt ?? a.createdAt,
+                );
+              }
+              return ExecutorOrderQueue.compare(a, b);
+            });
+
+            final queue = ExecutorOrderQueue(orders);
+            final visible = orders
+                .where(
+                  (o) =>
+                      ('${o.displayNumber} ${o.title} ${o.equipment} ${uiText(context, o.title)} ${uiText(context, o.equipment)}'
+                          .toLowerCase()
+                          .contains(_query.trim().toLowerCase())),
+                )
+                .toList();
+            return AppRefreshIndicator(
+              onRefresh: _refresh,
+              isLoading:
+                  store.isLoading && store.assignedTo(employeeId).isEmpty,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                children: [
+                  if (currentPage == 0)
+                    ExecutorGreeting(
+                      employee: employee,
+                      time: store.now,
+                      orders: store.assignedTo(employeeId),
+                    )
+                  else
+                    Text(
+                      uiText(
+                        context,
+                        'Завершённые, отменённые и отклонённые наряды',
+                      ),
+                      style: const TextStyle(
+                        color: Color(0xFF687385),
+                        height: 1.5,
+                      ),
                     ),
-                    const SizedBox(height: 10),
-                  ]
-                else ...[
-                  for (final status in [
-                    OrderStatus.working,
-                    OrderStatus.paused,
-                    OrderStatus.issued,
-                    OrderStatus.accepted,
-                    OrderStatus.rework,
-                    OrderStatus.queued,
-                    OrderStatus.review,
-                  ])
-                    if (visible.any((o) => o.status == status)) ...[
-                      _section(uiText(context, status.label), status.color),
-                      for (final order in visible.where(
-                        (o) => o.status == status,
-                      )) ...[
-                        _OrderTile(
+                  const SizedBox(height: 16),
+                  if (store.loadError != null || _refreshError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Text(
+                        uiText(context, store.loadError ?? _refreshError!),
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                    ),
+                  TextField(
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(color: Color(0xFFE5E8ED)),
+                      ),
+                      hintText: uiText(
+                        context,
+                        'Поиск по номеру или оборудованию',
+                      ),
+                      prefixIcon: const Icon(
+                        LucideIcons.search,
+                        size: 19,
+                        color: Color(0xFF637B9E),
+                      ),
+                      hintStyle: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF637B9E),
+                      ),
+                    ),
+                    onChanged: (v) => setState(() => _query = v),
+                  ),
+                  const SizedBox(height: 16),
+                  if (visible.isEmpty)
+                    Text(
+                      orders.isNotEmpty
+                          ? uiText(
+                              context,
+                              'По вашему запросу ничего не найдено',
+                            )
+                          : currentPage == 1
+                          ? uiText(context, 'История пока пуста')
+                          : uiText(context, 'Нет активных нарядов'),
+                    ),
+                  if (currentPage == 1)
+                    for (final order in visible) ...[
+                      ExecutorHistoryTile(
+                        order: order,
+                        now: store.now,
+                        onTap: () => _openOrder(order),
+                      ),
+                      const SizedBox(height: 10),
+                    ]
+                  else ...[
+                    for (final status in [
+                      OrderStatus.working,
+                      OrderStatus.paused,
+                      OrderStatus.issued,
+                      OrderStatus.accepted,
+                      OrderStatus.rework,
+                      OrderStatus.queued,
+                      OrderStatus.review,
+                    ])
+                      if (visible.any((o) => o.status == status)) ...[
+                        _section(uiText(context, status.label), status.color),
+                        for (final order in visible.where(
+                          (o) => o.status == status,
+                        )) ...[
+                          _OrderTile(
+                            order: order,
+                            queuePosition: queue.position(order),
+                            now: store.now,
+                            onTap: () => _openOrder(order),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+                      ],
+                    if (_query.trim().isEmpty &&
+                        store
+                            .assignedTo(employeeId)
+                            .any((o) => o.status == OrderStatus.closed)) ...[
+                      _section(
+                        uiText(context, 'Завершено'),
+                        const Color(0xFF059669),
+                        onTap: () => setState(() => _page = 1),
+                      ),
+                      for (final order
+                          in (store
+                                  .assignedTo(employeeId)
+                                  .where((o) => o.status == OrderStatus.closed)
+                                  .toList()
+                                ..sort(
+                                  (a, b) =>
+                                      (b.history.isEmpty
+                                              ? b.createdAt
+                                              : b.history.last.time)
+                                          .compareTo(
+                                            a.history.isEmpty
+                                                ? a.createdAt
+                                                : a.history.last.time,
+                                          ),
+                                ))
+                              .take(2)) ...[
+                        ExecutorHistoryTile(
+                          compact: true,
+                          loadTime: () =>
+                              store.loadExecutorOrderTime(employeeId, order),
                           order: order,
-                          queuePosition: queue.position(order),
                           now: store.now,
                           onTap: () => _openOrder(order),
                         ),
                         const SizedBox(height: 10),
                       ],
                     ],
-                  if (_query.trim().isEmpty &&
-                      store
-                          .assignedTo(employeeId)
-                          .any((o) => o.status == OrderStatus.closed)) ...[
-                    _section(
-                      uiText(context, 'Завершено'),
-                      const Color(0xFF059669),
-                      onTap: () => setState(() => _page = 1),
-                    ),
-                    for (final order
-                        in (store
-                                .assignedTo(employeeId)
-                                .where((o) => o.status == OrderStatus.closed)
-                                .toList()
-                              ..sort(
-                                (a, b) =>
-                                    (b.history.isEmpty
-                                            ? b.createdAt
-                                            : b.history.last.time)
-                                        .compareTo(
-                                          a.history.isEmpty
-                                              ? a.createdAt
-                                              : a.history.last.time,
-                                        ),
-                              ))
-                            .take(2)) ...[
-                      ExecutorHistoryTile(
-                        compact: true,
-                        loadTime: () =>
-                            store.loadExecutorOrderTime(employeeId, order),
-                        order: order,
-                        now: store.now,
-                        onTap: () => _openOrder(order),
-                      ),
-                      const SizedBox(height: 10),
-                    ],
                   ],
                 ],
-              ],
-            ),
-          );
-        },
+              ),
+            );
+          },
+        ),
       ),
     );
   }

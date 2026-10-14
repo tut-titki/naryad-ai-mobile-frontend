@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:async';
+import 'package:uuid/uuid.dart';
+
 import '../../../shared/widgets/backend_section.dart';
 import '../../auth/widgets/auth_scope.dart';
 import '../../references/data/reference_storage.dart';
@@ -51,6 +53,8 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
   final descriptionFocus = FocusNode();
 
   final commentController = TextEditingController();
+  String? creationKey;
+  Map<String, dynamic>? creationPayload;
 
   late final PhotoPickerService photoPicker;
 
@@ -170,6 +174,14 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
       final values = await creationDraftStorage!.load();
       if (!mounted || values == null || values.isEmpty) return;
       final draft = values.first;
+      creationKey = draft['creationKey'] as String?;
+      final savedPayload = draft['creationPayload'];
+      creationPayload = savedPayload == null
+          ? null
+          : Map<String, dynamic>.from(savedPayload as Map);
+      if ((creationKey == null) != (creationPayload == null)) {
+        throw const FormatException('Повреждены данные отправки наряда');
+      }
       equipmentId = draft['equipmentId'] as int?;
       if (!equipment.any((e) => e.id == equipmentId)) equipmentId = null;
       descriptionController.text = draft['description'] as String? ?? '';
@@ -210,15 +222,22 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
     }
   }
 
-  void saveDraft() {
+  Future<void> saveDraft({bool beforeCreation = false}) {
     if (issued ||
         !draftRestored ||
         draftLoadFailed ||
         draftStorage == null ||
         draftKey == null) {
-      return;
+      if (beforeCreation) {
+        return Future<void>.error(
+          StateError("Не удалось сохранить данные перед отправкой"),
+        );
+      }
+      return Future<void>.value();
     }
     final data = {
+      'creationKey': creationKey,
+      'creationPayload': creationPayload,
       'equipmentId': equipmentId,
       'description': descriptionController.text,
       'comment': commentController.text,
@@ -242,9 +261,11 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
           },
       ],
     };
-    draftWrites = draftWrites
-        .then((_) => creationDraftStorage!.save(data))
-        .catchError((Object _) {});
+    final write = draftWrites.then(
+      (_) => creationDraftStorage!.save(data, requireOwnership: beforeCreation),
+    );
+    draftWrites = write.catchError((Object _) {});
+    return beforeCreation ? write : draftWrites;
   }
 
   Future<void> discardDraft() async {
@@ -775,45 +796,47 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
       return;
     }
 
-    if (!formKey.currentState!.validate()) {
-      return;
-    }
-
     final selectedAreaId = areaId;
     final selectedEquipmentId = equipmentId;
     final selectedExecutorId = executorId;
 
-    if (selectedAreaId == null) {
-      showMessage(context, 'Выберите участок.');
-      return;
-    }
+    if (creationPayload == null) {
+      if (!formKey.currentState!.validate()) {
+        return;
+      }
 
-    if (selectedEquipmentId == null) {
-      showMessage(context, 'Выберите оборудование.');
-      return;
-    }
+      if (selectedAreaId == null) {
+        showMessage(context, 'Выберите участок.');
+        return;
+      }
 
-    if (!assignBrigade && selectedExecutorId == null) {
-      showMessage(context, 'Выберите исполнителя.');
-      return;
-    }
+      if (selectedEquipmentId == null) {
+        showMessage(context, 'Выберите оборудование.');
+        return;
+      }
 
-    if (assignBrigade && brigadeId == null) {
-      showMessage(
-        context,
-        backendText(context, 'Выберите бригаду', 'Бригаданы таңдаңыз'),
-      );
-      return;
-    }
+      if (!assignBrigade && selectedExecutorId == null) {
+        showMessage(context, 'Выберите исполнителя.');
+        return;
+      }
 
-    if (useNormative && normativeId == null) {
-      showMessage(context, 'Выберите норматив.');
-      return;
-    }
+      if (assignBrigade && brigadeId == null) {
+        showMessage(
+          context,
+          backendText(context, 'Выберите бригаду', 'Бригаданы таңдаңыз'),
+        );
+        return;
+      }
 
-    if (customDeadline && !deadline.isAfter(DateTime.now())) {
-      showMessage(context, 'Выберите срок в будущем.');
-      return;
+      if (useNormative && normativeId == null) {
+        showMessage(context, 'Выберите норматив.');
+        return;
+      }
+
+      if (customDeadline && !deadline.isAfter(DateTime.now())) {
+        showMessage(context, 'Выберите срок в будущем.');
+        return;
+      }
     }
 
     setState(() {
@@ -823,53 +846,65 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
     });
 
     try {
-      // Capture the form before uploading; a disposed form cannot be read later.
-      final beforePhotoUrls = <String>[];
-      final input = CreateWorkOrderInput(
-        type: type,
-        description: descriptionController.text.trim(),
-        areaId: selectedAreaId,
-        equipmentId: selectedEquipmentId,
-        assigneeId: assignBrigade ? null : selectedExecutorId,
-        brigadeId: assignBrigade ? brigadeId : null,
-        priority: priority,
-        normativeId: normativeId,
-        faultCodeId: faultCodeId,
-        deadline: customDeadline
-            ? deadline.toUtc()
-            : normativeId != null
-            ? null
-            : DateTime.now().add(Duration(hours: deadlineHours)).toUtc(),
-        comment: commentController.text.trim().isEmpty
-            ? null
-            : commentController.text.trim(),
-        beforePhotoUrls: beforePhotoUrls,
-      );
-      // Сначала загружаем фотографии.
-      //
-      // POST /api/uploads не является
-      // идемпотентным, поэтому здесь
-      // нет автоматического retry.
-      final uploadFiles = photos
-          .map(
-            (photo) => UploadFileInput(
-              bytes: photo.bytes,
-              fileName: photo.name,
-              takenAt: photo.takenAt,
-            ),
-          )
-          .toList(growable: false);
+      if (creationPayload == null) {
+        // Capture the form before uploading; a disposed form cannot be read later.
+        final beforePhotoUrls = <String>[];
+        final input = CreateWorkOrderInput(
+          type: type,
+          description: descriptionController.text.trim(),
+          areaId: selectedAreaId!,
+          equipmentId: selectedEquipmentId!,
+          assigneeId: assignBrigade ? null : selectedExecutorId,
+          brigadeId: assignBrigade ? brigadeId : null,
+          priority: priority,
+          normativeId: normativeId,
+          faultCodeId: faultCodeId,
+          deadline: customDeadline
+              ? deadline.toUtc()
+              : normativeId != null
+              ? null
+              : DateTime.now().add(Duration(hours: deadlineHours)).toUtc(),
+          comment: commentController.text.trim().isEmpty
+              ? null
+              : commentController.text.trim(),
+          beforePhotoUrls: beforePhotoUrls,
+        );
+        // Сначала загружаем фотографии.
+        //
+        // POST /api/uploads не является
+        // идемпотентным, поэтому здесь
+        // нет автоматического retry.
+        final uploadFiles = photos
+            .map(
+              (photo) => UploadFileInput(
+                bytes: photo.bytes,
+                fileName: photo.name,
+                takenAt: photo.takenAt,
+              ),
+            )
+            .toList(growable: false);
 
-      if (uploadFiles.isNotEmpty) {
-        beforePhotoUrls.addAll(
-          await widget.api.uploads.uploadPhotoUrls(uploadFiles),
+        if (uploadFiles.isNotEmpty) {
+          beforePhotoUrls.addAll(
+            await widget.api.uploads.uploadPhotoUrls(uploadFiles),
+          );
+        }
+        // Затем создаём сам наряд.
+        //
+        // POST /api/work-orders также
+        // нельзя автоматически повторять.
+        input.validate();
+        creationKey ??= const Uuid().v4();
+        creationPayload = Map<String, dynamic>.from(
+          jsonDecode(jsonEncode(input.toJson())) as Map,
         );
       }
-      // Затем создаём сам наряд.
-      //
-      // POST /api/work-orders также
-      // нельзя автоматически повторять.
-      final created = await widget.api.workOrders.createWorkOrder(input);
+
+      await saveDraft(beforeCreation: true);
+      final created = await widget.api.workOrders.createWorkOrderFromSnapshot(
+        creationPayload!,
+        creationKey: creationKey!,
+      );
 
       // Server acknowledgement must clear the draft even after route removal.
       issued = true;
@@ -1056,7 +1091,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
                           draftLoadFailed ||
                           pickingPhotos ||
                           voiceBusy ||
-                          missingInput != null
+                          (creationPayload == null && missingInput != null)
                       ? null
                       : submit,
                   icon: creating
@@ -1067,10 +1102,18 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
                         )
                       : const Icon(Icons.send_outlined),
                   label: Text(
-                    uiText(
-                      context,
-                      creating ? 'Создание...' : missingInput ?? 'Выдать наряд',
-                    ),
+                    !creating && creationPayload != null
+                        ? backendText(
+                            context,
+                            'Повторить сохранённый наряд',
+                            'Сақталған нарядты қайта жіберу',
+                          )
+                        : uiText(
+                            context,
+                            creating
+                                ? 'Создание...'
+                                : missingInput ?? 'Выдать наряд',
+                          ),
                   ),
                 ),
               ),
@@ -1136,6 +1179,23 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _buildHeader(),
+
+                if (!issued && creationPayload != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: Text(
+                      backendText(
+                        context,
+                        'Отправка не подтверждена. Повтор отправит сохранённые '
+                            'данные предыдущей попытки. Изменения формы '
+                            'в этот повтор не попадут.',
+                        'Жіберу расталмады. Қайта жібергенде алдыңғы әрекеттің '
+                            'сақталған деректері жіберіледі. Формадағы өзгерістер '
+                            'бұл қайта жіберуге қосылмайды.',
+                      ),
+                      key: const ValueKey('saved-order-retry-notice'),
+                    ),
+                  ),
 
                 const SizedBox(height: 24),
 

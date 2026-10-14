@@ -68,8 +68,11 @@ void main() {
               onPressed: () => Navigator.push<int>(
                 context,
                 MaterialPageRoute(
-                  builder: (_) =>
-                      CreateOrderScreen(api: api, photoPicker: _NoPhotos()),
+                  builder: (_) => CreateOrderScreen(
+                    api: api,
+                    draftStorage: MemoryReferenceStorage(),
+                    photoPicker: _NoPhotos(),
+                  ),
                 ),
               ),
               child: const Text('Create'),
@@ -170,8 +173,11 @@ void main() {
                 onPressed: () => Navigator.push<int>(
                   context,
                   MaterialPageRoute(
-                    builder: (_) =>
-                        CreateOrderScreen(api: api, photoPicker: _NoPhotos()),
+                    builder: (_) => CreateOrderScreen(
+                      api: api,
+                      draftStorage: MemoryReferenceStorage(),
+                      photoPicker: _NoPhotos(),
+                    ),
                   ),
                 ),
                 child: const Text('Create'),

@@ -1,3 +1,4 @@
+import 'package:mineral/features/references/data/reference_storage_stub.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -56,7 +57,11 @@ void main() {
         locale: Locale(language),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: CreateOrderScreen(api: api, photoPicker: _NoPhotos()),
+        home: CreateOrderScreen(
+          api: api,
+          draftStorage: MemoryReferenceStorage(),
+          photoPicker: _NoPhotos(),
+        ),
       ),
     );
     await tester.pumpAndSettle();

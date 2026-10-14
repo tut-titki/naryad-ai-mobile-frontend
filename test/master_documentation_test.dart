@@ -1,3 +1,4 @@
+import 'package:mineral/features/references/data/reference_storage_stub.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -280,6 +281,7 @@ void main() {
             priority: WorkOrderPriority.normal,
             normativeId: 4,
           ),
+          creationkey: 'brigade-create-test',
         ),
         throwsA(
           isA<ApiException>().having(
@@ -479,8 +481,11 @@ void main() {
             body: FilledButton(
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) =>
-                      CreateOrderScreen(api: api, photoPicker: NoPhotos()),
+                  builder: (_) => CreateOrderScreen(
+                    api: api,
+                    draftStorage: MemoryReferenceStorage(),
+                    photoPicker: NoPhotos(),
+                  ),
                 ),
               ),
               child: const Text('Open'),
@@ -583,8 +588,11 @@ void main() {
             body: FilledButton(
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) =>
-                      CreateOrderScreen(api: api, photoPicker: NoPhotos()),
+                  builder: (_) => CreateOrderScreen(
+                    api: api,
+                    draftStorage: MemoryReferenceStorage(),
+                    photoPicker: NoPhotos(),
+                  ),
                 ),
               ),
               child: const Text('Open'),

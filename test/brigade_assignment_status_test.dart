@@ -1,3 +1,4 @@
+import 'package:mineral/features/references/data/reference_storage_stub.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mineral/core/services/photo_picker_service.dart';
@@ -73,7 +74,11 @@ void main() {
           locale: Locale(language),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: CreateOrderScreen(api: api, photoPicker: NoPhotos()),
+          home: CreateOrderScreen(
+            api: api,
+            draftStorage: MemoryReferenceStorage(),
+            photoPicker: NoPhotos(),
+          ),
         ),
       );
       await tester.pumpAndSettle();

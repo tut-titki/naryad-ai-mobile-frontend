@@ -42,8 +42,16 @@ class OrderCreationDraftStorage {
     }
   });
 
-  Future<void> save(Map<String, dynamic> data) => _serial(() async {
-    if (_owners[key] != revision) return;
+  Future<void> save(
+    Map<String, dynamic> data, {
+    bool requireOwnership = false,
+  }) => _serial(() async {
+    if (_owners[key] != revision) {
+      if (requireOwnership) {
+        throw StateError("Черновик уже открыт в другой форме");
+      }
+      return;
+    }
     await storage.write(key, [
       {...data, '_draftRevision': revision},
     ]);

@@ -357,14 +357,37 @@ class WorkOrdersApi {
 
   // MARK: Create
 
-  Future<WorkOrderApiModel> createWorkOrder(CreateWorkOrderInput input) async {
+  Future<WorkOrderApiModel> createWorkOrder(
+    CreateWorkOrderInput input, {
+    required String creationkey,
+  }) async {
     input.validate();
 
     final response = await _client.post(
       '/api/work-orders',
+      headers: {'Idempotency-Key': creationkey},
       body: input.toJson(),
     );
 
+    return WorkOrderApiModel.fromJson(_asJsonMap(response.data));
+  }
+
+  Future<WorkOrderApiModel> createWorkOrderFromSnapshot(
+    Map<String, dynamic> payload, {
+    required String creationKey,
+  }) async {
+    if (creationKey.trim().isEmpty) {
+      throw ArgumentError.value(
+        creationKey,
+        'creationKey',
+        'Must not be empty',
+      );
+    }
+    final response = await _client.post(
+      '/api/work-orders',
+      headers: {'Idempotency-Key': creationKey},
+      body: payload,
+    );
     return WorkOrderApiModel.fromJson(_asJsonMap(response.data));
   }
 

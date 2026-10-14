@@ -1,3 +1,4 @@
+import 'package:mineral/features/references/data/reference_storage_stub.dart';
 import 'helpers/backend_api_fixture.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -78,7 +79,11 @@ void main() {
         home: const Scaffold(body: Text('Главная')),
         initialRoute: '/create',
         routes: {
-          '/create': (_) => CreateOrderScreen(api: api, photoPicker: fake),
+          '/create': (_) => CreateOrderScreen(
+            api: api,
+            draftStorage: MemoryReferenceStorage(),
+            photoPicker: fake,
+          ),
         },
       ),
     );
@@ -124,7 +129,11 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: buildAppTheme(),
-        home: CreateOrderScreen(api: api, photoPicker: fake),
+        home: CreateOrderScreen(
+          api: api,
+          draftStorage: MemoryReferenceStorage(),
+          photoPicker: fake,
+        ),
       ),
     );
     await tester.pumpAndSettle();

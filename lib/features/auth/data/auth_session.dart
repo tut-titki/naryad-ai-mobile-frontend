@@ -159,6 +159,7 @@ class AuthSession extends ChangeNotifier {
   }
 
   String? get accessToken => _token;
+  int get sessionGeneration => _generation;
   bool get authenticated => _token != null && user != null;
   String? get token => _token;
   bool get authenticatedWithPassword => _authenticatedWithPassword;

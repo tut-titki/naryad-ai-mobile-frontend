@@ -900,12 +900,28 @@ class ApiExecutorRepository extends ChangeNotifier
   }
 
   Future<_QueueSyncResult> _syncQueue() async {
+    final generation = api.session.sessionGeneration;
     final actions = await actionStorage.load();
     final permanentErrors = <String, ApiException>{};
     final appliedActions = <String>{};
+
+    bool currentSession() =>
+        _sessionActive && api.session.sessionGeneration == generation;
+
+    _QueueSyncResult interrupted() => _QueueSyncResult(
+      permanentErrors,
+      const ApiException(401, 'Сессия завершена'),
+      appliedActions,
+    );
+
     for (final action in actions) {
-      if (!_sessionActive || action.employeeId != _user.id) {
-        return _QueueSyncResult(permanentErrors, null, appliedActions);
+      if (!currentSession()) return interrupted();
+      if (action.employeeId != _user.id) {
+        return _QueueSyncResult(
+          permanentErrors,
+          const ApiException(403, 'Недостаточно прав'),
+          appliedActions,
+        );
       }
       if (action.type == 'actionReasonDraft') continue;
       if (action.type != 'workOrderAction') {
@@ -922,6 +938,7 @@ class ApiExecutorRepository extends ChangeNotifier
         if (photos != null) {
           final urls = List<String>.from(body['afterPhotoUrls'] as List);
           for (var index = urls.length; index < photos.length; index++) {
+            if (!currentSession()) return interrupted();
             final photo = photos[index] as Map;
             final url =
                 photo['url'] as String? ??
@@ -932,30 +949,22 @@ class ApiExecutorRepository extends ChangeNotifier
                   ),
                 );
             urls.add(url);
-            // Persist every successful upload before the next network request.
             action.payload['afterPhotoUrls'] = List.of(urls);
             await actionStorage.add(action);
+            if (!currentSession()) return interrupted();
           }
           body['afterPhotoUrls'] = urls;
         }
+        if (!currentSession()) return interrupted();
         var order = _active[action.orderNumber] ?? _history[action.orderNumber];
         order ??= (await api.loadOrder(action.orderNumber)).toWorkOrder();
+        if (!currentSession()) return interrupted();
         if (await _sendOnline(action.employeeId, order, body, action.id)) {
           appliedActions.add(action.id);
         }
         await actionStorage.remove(action.id);
-        if (body['action'] == 'COMPLETE') {
-          try {
-            await _clearSubmittedDraft(
-              action.employeeId,
-              order.number,
-              submittedVersion,
-            );
-          } catch (_) {
-            // Более новый черновик должен остаться сохранённым
-          }
-        }
       } on ApiException catch (e) {
+        if (!currentSession()) return interrupted();
         if ({400, 403, 404, 409, 413, 422}.contains(e.status)) {
           await actionStorage.remove(action.id);
           _error = _user.language == 'kk'
@@ -971,6 +980,7 @@ class ApiExecutorRepository extends ChangeNotifier
         _notify();
         return _QueueSyncResult(permanentErrors, e, appliedActions);
       } catch (_) {
+        if (!currentSession()) return interrupted();
         _error = _user.language == 'kk'
             ? 'Телефонда сақталды. Жіберуді күтіп тұр.'
             : 'Сохранено на телефоне. Ожидает отправки.';
@@ -986,6 +996,7 @@ class ApiExecutorRepository extends ChangeNotifier
       _error = null;
       _notify();
     }
+    if (!currentSession()) return interrupted();
     return _QueueSyncResult(permanentErrors, null, appliedActions);
   }
 
@@ -996,6 +1007,9 @@ class ApiExecutorRepository extends ChangeNotifier
     String id,
   ) async {
     _checkOrder(employeeId, order);
+    final generation = api.session.sessionGeneration;
+    bool currentSession() =>
+        _sessionActive && api.session.sessionGeneration == generation;
     final orderId = order.apiId!;
     final stateVersion = _orderStateVersion[orderId] ?? 0;
     try {
@@ -1009,7 +1023,7 @@ class ApiExecutorRepository extends ChangeNotifier
       }
       final dto = ExecutorOrderDto.fromJson(data);
       // Acknowledgement removes the queued action even if its snapshot is stale.
-      if (!_sessionActive) return false;
+      if (!currentSession()) return false;
       _revision++;
       final current = _active[orderId] ?? _history[orderId] ?? order;
       if (current.accessErrorStatus == 403 ||
@@ -1055,6 +1069,7 @@ class ApiExecutorRepository extends ChangeNotifier
       _notify();
       return true;
     } on ApiException catch (e) {
+      if (!currentSession()) rethrow;
       if (e.status == 409) {
         try {
           await loadExecutorOrder(employeeId, order);

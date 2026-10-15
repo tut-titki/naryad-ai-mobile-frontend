@@ -1,3 +1,4 @@
+import '../widgets/master_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -28,7 +29,6 @@ class DashboardScreen extends StatelessWidget {
   static const _blue = Color(0xFF01408B);
   static const _ink = Color(0xFF172B4D);
   static const _muted = Color(0xFF637B9E);
-  static const _line = Color(0xFFE6EDF5);
   static const _background = Color(0xFFF5F7FB);
 
   @override
@@ -39,73 +39,7 @@ class DashboardScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _shiftCounters(),
-          const SizedBox(height: 22),
-
-          _sectionTitle(
-            context,
-            'Аналитика смены',
-            LucideIcons.chartNoAxesCombined,
-          ),
           const SizedBox(height: 12),
-
-          BackendSection<DashboardAnalytics>(
-            load: api.analytics.getDashboard,
-            changes: api.realtime.changes,
-            builder: (context, data) => LayoutBuilder(
-              builder: (context, constraints) {
-                final compact = constraints.maxWidth < 680;
-
-                final equipment = _surface(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _innerHeading(
-                        uiText(context, 'Частые отказы'),
-                        LucideIcons.wrench,
-                      ),
-                      const SizedBox(height: 14),
-                      EquipmentFailuresList(document: data.topEquipment),
-                    ],
-                  ),
-                );
-
-                final executors = _surface(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _innerHeading(
-                        uiText(context, 'Рейтинг исполнителей'),
-                        LucideIcons.award,
-                      ),
-                      const SizedBox(height: 14),
-                      ExecutorRankingList(document: data.topExecutors),
-                    ],
-                  ),
-                );
-
-                if (compact) {
-                  return Column(
-                    children: [
-                      equipment,
-                      const SizedBox(height: 12),
-                      executors,
-                    ],
-                  );
-                }
-
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: equipment),
-                    const SizedBox(width: 14),
-                    Expanded(child: executors),
-                  ],
-                );
-              },
-            ),
-          ),
-
-          const SizedBox(height: 24),
 
           _sectionTitle(context, 'Требуют внимания', LucideIcons.alertTriangle),
           const SizedBox(height: 12),
@@ -173,6 +107,71 @@ class DashboardScreen extends StatelessWidget {
                 child: ShiftTeamList(executors: shift),
               );
             },
+          ),
+
+          const SizedBox(height: 20),
+          _sectionTitle(
+            context,
+            'Аналитика смены',
+            LucideIcons.chartNoAxesCombined,
+          ),
+          const SizedBox(height: 12),
+
+          BackendSection<DashboardAnalytics>(
+            load: api.analytics.getDashboard,
+            changes: api.realtime.changes,
+            builder: (context, data) => LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 680;
+
+                final equipment = _surface(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _innerHeading(
+                        uiText(context, 'Частые отказы'),
+                        LucideIcons.wrench,
+                      ),
+                      const SizedBox(height: 14),
+                      EquipmentFailuresList(document: data.topEquipment),
+                    ],
+                  ),
+                );
+
+                final executors = _surface(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _innerHeading(
+                        uiText(context, 'Рейтинг исполнителей'),
+                        LucideIcons.award,
+                      ),
+                      const SizedBox(height: 14),
+                      ExecutorRankingList(document: data.topExecutors),
+                    ],
+                  ),
+                );
+
+                if (compact) {
+                  return Column(
+                    children: [
+                      equipment,
+                      const SizedBox(height: 12),
+                      executors,
+                    ],
+                  );
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: equipment),
+                    const SizedBox(width: 14),
+                    Expanded(child: executors),
+                  ],
+                );
+              },
+            ),
           ),
 
           const SizedBox(height: 24),
@@ -291,7 +290,7 @@ class DashboardScreen extends StatelessWidget {
           child: Text(
             uiText(context, title),
             style: const TextStyle(
-              fontSize: 17,
+              fontSize: 15,
               fontWeight: FontWeight.w700,
               color: _ink,
             ),
@@ -330,19 +329,8 @@ class DashboardScreen extends StatelessWidget {
 
   Widget _surface({
     required Widget child,
-    EdgeInsetsGeometry padding = const EdgeInsets.all(16),
-  }) {
-    return Container(
-      width: double.infinity,
-      padding: padding,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _line),
-      ),
-      child: child,
-    );
-  }
+    EdgeInsetsGeometry padding = const EdgeInsets.all(14),
+  }) => MasterSurface(padding: padding, child: child);
 
   Widget _emptySection(IconData icon, String message) {
     return _surface(

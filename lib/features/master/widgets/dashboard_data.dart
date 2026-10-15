@@ -1,3 +1,4 @@
+import 'master_ui.dart';
 import 'package:flutter/material.dart';
 import '../../../core/api/backend_document.dart';
 import '../../../l10n/ui_localization.dart';
@@ -46,104 +47,55 @@ class ShiftCounters extends StatelessWidget {
   const ShiftCounters({super.key, required this.counters});
   final Map<String, int> counters;
   @override
-  Widget build(BuildContext context) => Row(
-    key: const ValueKey('shift-counters'),
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      for (final item in [
-        (
-          'issued',
-          'Выдано',
-          'Берілді',
-          'Выдано за смену',
-          Icons.assignment_outlined,
-          brand,
-        ),
-        (
-          'completed',
-          'Выполнено',
-          'Орындалды',
-          'Выполнено за смену',
-          Icons.task_alt,
-          const Color(0xFF15803D),
-        ),
-        (
-          'overdue',
-          'Просрочено',
-          'Мерзімі өтті',
-          'Просрочено',
-          Icons.schedule,
-          const Color(0xFFB42318),
-        ),
-        (
-          'equipmentInDowntime',
-          'Простой',
-          'Тоқтап тұр',
-          'Оборудование в простое',
-          Icons.factory_outlined,
-          const Color(0xFFB45309),
-        ),
-      ]) ...[
-        if (item.$1 != 'issued') const SizedBox(width: 6),
-        Expanded(
-          child: Tooltip(
-            message: uiText(context, item.$4),
-            child: Container(
-              height: 76,
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: border),
+  Widget build(BuildContext context) {
+    final metrics = [
+      ('issued', 'Выдано', 'Берілді', Icons.assignment_outlined, brand),
+      (
+        'completed',
+        'Выполнено',
+        'Орындалды',
+        Icons.task_alt,
+        const Color(0xFF059669),
+      ),
+      (
+        'overdue',
+        'Просрочено',
+        'Мерзімі өтті',
+        Icons.schedule,
+        const Color(0xFFDC2626),
+      ),
+      (
+        'equipmentInDowntime',
+        'Простой',
+        'Тоқтап тұр',
+        Icons.factory_outlined,
+        const Color(0xFFD97706),
+      ),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth < 600 ? 2 : 4;
+        final width = (constraints.maxWidth - 8 * (columns - 1)) / columns;
+        return Wrap(
+          key: const ValueKey('shift-counters'),
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final item in metrics)
+              SizedBox(
+                width: width,
+                child: MasterMetric(
+                  title: backendText(context, item.$2, item.$3),
+                  value: '${counters[item.$1] ?? '—'}',
+                  icon: item.$4,
+                  color: item.$5,
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    height: 24,
-                    child: Row(
-                      children: [
-                        Icon(item.$5, color: item.$6, size: 16),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              '${counters[item.$1] ?? '—'}',
-                              style: TextStyle(
-                                fontSize: 22,
-                                height: 1,
-                                fontWeight: FontWeight.w800,
-                                color: item.$6,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 26,
-                    child: Text(
-                      backendText(context, item.$2, item.$3),
-                      maxLines: 2,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        height: 1.2,
-                        color: muted,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    ],
-  );
+          ],
+        );
+      },
+    );
+  }
 }
 
 class EquipmentFailuresList extends StatelessWidget {
@@ -277,56 +229,74 @@ class ShiftTeamList extends StatelessWidget {
   const ShiftTeamList({super.key, required this.executors});
   final List<ExecutorReference> executors;
   @override
-  Widget build(BuildContext context) => Panel(
-    padding: 16,
-    child: _rows([
-      for (final executor in executors)
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 5),
-                child: Icon(
-                  Icons.circle,
-                  size: 8,
-                  color: executor.employeeStatus.color,
+  Widget build(BuildContext context) => _rows([
+    for (final executor in executors)
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              radius: 19,
+              backgroundColor: lightBlue,
+              child: Text(
+                executor.fullName.isEmpty
+                    ? '—'
+                    : executor.fullName.substring(0, 1),
+                style: const TextStyle(
+                  color: brand,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      executor.fullName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    executor.fullName,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    uiText(context, executor.qualification),
+                    style: const TextStyle(color: muted, fontSize: 12),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Icon(
+                          Icons.circle,
+                          size: 7,
+                          color: executor.employeeStatus.color,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      uiText(context, executor.qualification),
-                      style: const TextStyle(color: muted, fontSize: 12),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      uiText(context, executor.statusLabel),
-                      style: TextStyle(
-                        color: executor.employeeStatus.color,
-                        fontSize: 12,
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          uiText(context, executor.statusLabel),
+                          style: TextStyle(
+                            color: executor.employeeStatus.color,
+                            fontSize: 12,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-    ]),
-  );
+      ),
+  ]);
 }
 
 class DashboardInsights extends StatelessWidget {

@@ -1,3 +1,4 @@
+import '../../master/widgets/master_ui.dart';
 import 'package:flutter/material.dart';
 import '../../../core/api/api_services.dart';
 import '../../../core/api/backend_document.dart';
@@ -15,14 +16,14 @@ class EquipmentHistoryScreen extends StatelessWidget {
   final ApiServices api;
   final int equipmentId;
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => MasterScaffold(
     appBar: AppBar(
       title: Text(
         backendText(context, 'История оборудования', 'Жабдық тарихы'),
       ),
     ),
     body: BackendRefreshView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(16),
       child: BackendSection<BackendDocument>(
         load: () async => BackendDocument.fromJson(
           (await api.client.get('/api/equipment/$equipmentId/history')).data,
@@ -63,7 +64,7 @@ class EquipmentHistoryScreen extends StatelessWidget {
               for (final order in orders.whereType<Map>())
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
-                  child: Panel(
+                  child: MasterSurface(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [

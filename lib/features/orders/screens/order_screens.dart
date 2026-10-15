@@ -1,3 +1,4 @@
+import '../../master/widgets/master_ui.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'package:uuid/uuid.dart';
@@ -33,11 +34,17 @@ class CreateOrderScreen extends StatefulWidget {
     required this.api,
     this.photoPicker,
     this.initialEquipmentId,
+    this.initialEquipment,
+    this.initialArea,
+    this.lockEquipment = false,
     this.draftStorage,
-  });
+  }) : assert(!lockEquipment || initialEquipment != null);
 
   final ApiServices api;
   final int? initialEquipmentId;
+  final EquipmentReference? initialEquipment;
+  final AreaReference? initialArea;
+  final bool lockEquipment;
   final ReferenceStorage? draftStorage;
   final PhotoPickerService? photoPicker;
 
@@ -181,7 +188,9 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
     final owner = AuthScope.maybeOf(context)?.user?.id;
     if (owner == null && widget.draftStorage == null) return;
     draftStorage = widget.draftStorage ?? createReferenceStorage();
-    draftKey = 'order-draft:${widget.api.baseUrl}:${owner ?? 'test'}';
+    draftKey =
+        'order-draft:${widget.api.baseUrl}:${owner ?? 'test'}'
+        '${widget.lockEquipment ? ':qr:${widget.initialEquipment!.id}' : ''}';
     creationDraftStorage ??= OrderCreationDraftStorage(
       storage: draftStorage!,
       key: draftKey!,
@@ -382,6 +391,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
         faultCodes = results[2] as List<FaultCodeReference>;
         brigades = results[3] as List<BrigadeReference>;
         equipment = results[4] as List<EquipmentReference>;
+        mergeScannedEquipment();
         normatives = results[5] as List<NormativeReference>;
         if (!areas.any((item) => item.id == areaId)) {
           areaId = null;
@@ -430,6 +440,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
       brigades = results[3] as List<BrigadeReference>;
 
       equipment = results[4] as List<EquipmentReference>;
+      mergeScannedEquipment();
       if (!draftRestored) {
         await restoreDraft();
         if (!mounted) return;
@@ -438,7 +449,10 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
       }
       setState(() => loadingReferences = false);
       final restoredEquipment = equipmentId;
-      final initial = widget.initialEquipmentId ?? restoredEquipment;
+      final initial =
+          widget.initialEquipment?.id ??
+          widget.initialEquipmentId ??
+          restoredEquipment;
       if (initial != null && equipment.any((e) => e.id == initial)) {
         await changeEquipment(
           initial,
@@ -469,11 +483,27 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
 
   // MARK: Area / equipment
 
+  void mergeScannedEquipment() {
+    final scanned = widget.initialEquipment;
+    if (scanned == null) return;
+    equipment = [scanned, ...equipment.where((item) => item.id != scanned.id)];
+    final scannedArea = widget.initialArea;
+    if (scannedArea != null) {
+      areas = [
+        scannedArea,
+        ...areas.where((item) => item.id != scannedArea.id),
+      ];
+    }
+  }
+
   Future<void> changeEquipment(
     int newEquipmentId, {
     bool force = false,
     bool preserveManualSelection = false,
   }) async {
+    if (widget.lockEquipment && newEquipmentId != widget.initialEquipment!.id) {
+      return;
+    }
     if (!force && equipmentId == newEquipmentId) {
       return;
     }
@@ -1065,9 +1095,9 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
       ),
       child: PopScope(
         canPop: !creating && !discardingDraft,
-        child: Scaffold(
-          backgroundColor: Colors.white,
-          appBar: AppBar(title: Text(uiText(context, 'Создание наряда'))),
+        child: MasterScaffold(
+          backgroundColor: MasterColors.background,
+          appBar: AppBar(title: Text('Создание наряда', style: TextStyle(color: Colors.white),)),
           bottomNavigationBar: _buildBottomBar(),
           body: _buildBody(),
         ),
@@ -1221,12 +1251,18 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
                 _buildExecutors(),
                 ExpansionTile(
                   key: const ValueKey('order-advanced'),
-                  tilePadding: EdgeInsets.zero,
-                  childrenPadding: const EdgeInsets.only(top: 12),
+                  tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+                  childrenPadding: const EdgeInsets.all(12),
                   backgroundColor: Colors.white,
                   collapsedBackgroundColor: Colors.white,
-                  shape: const Border(top: BorderSide(color: border)),
-                  collapsedShape: const Border(top: BorderSide(color: border)),
+                  shape: RoundedRectangleBorder(
+                    side: const BorderSide(color: border),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  collapsedShape: RoundedRectangleBorder(
+                    side: const BorderSide(color: border),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                   leading: const Icon(Icons.tune_rounded, color: brand),
                   title: Text(backendText(context, 'Дополнительно', 'Қосымша')),
                   children: [
@@ -1281,7 +1317,9 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
           label: (e) => uiText(context, e.name),
           details: (e) => equipmentDetails(e),
           icon: Icons.precision_manufacturing_outlined,
-          onTap: creating || voiceBusy ? null : _selectEquipment,
+          onTap: creating || voiceBusy || widget.lockEquipment
+              ? null
+              : _selectEquipment,
         ),
       );
     }
@@ -1554,63 +1592,36 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
         assignBrigade ? brigadeId != null : executorId != null,
       ),
     ];
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (var index = 0; index < stages.length; index++)
-          Expanded(
-            child: Column(
+    return MasterSurface(
+      color: MasterColors.tint,
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 10,
+        children: [
+          for (var index = 0; index < stages.length; index++)
+            Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        height: 2,
-                        color: index == 0 ? Colors.transparent : border,
-                      ),
-                    ),
-                    Container(
-                      width: 30,
-                      height: 30,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: stages[index].$2 ? brand : lightBlue,
-                      ),
-                      alignment: Alignment.center,
-                      child: stages[index].$2
-                          ? const Icon(
-                              Icons.check_rounded,
-                              size: 17,
-                              color: Colors.white,
-                            )
-                          : Text(
-                              '${index + 1}',
-                              style: const TextStyle(
-                                color: brand,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                    ),
-                    Expanded(
-                      child: Container(
-                        height: 2,
-                        color: index == stages.length - 1
-                            ? Colors.transparent
-                            : border,
-                      ),
-                    ),
-                  ],
+                Icon(
+                  stages[index].$2
+                      ? Icons.check_circle
+                      : Icons.radio_button_unchecked,
+                  color: brand,
+                  size: 18,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(width: 6),
                 Text(
                   stages[index].$1,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 11, color: muted),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: brand,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -2152,44 +2163,12 @@ class _OrderFormSection extends StatelessWidget {
     required this.icon,
     required this.child,
   });
-
   final String title;
   final IconData icon;
   final Widget child;
-
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Material(
-        color: Colors.white,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Icon(icon, size: 20, color: brand),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      uiText(context, title),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: ink,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              child,
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: MasterSection(title: title, icon: icon, child: child),
+  );
 }

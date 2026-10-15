@@ -60,10 +60,20 @@ void main() {
       );
       expect(find.text('Список нарядов'), findsNothing);
       expect(find.text('Доска нарядов'), findsNothing);
+      expect(find.byType(TabBar), findsOneWidget);
+      expect(find.widgetWithText(Tab, 'Список'), findsOneWidget);
+      expect(find.widgetWithText(Tab, 'Канбан'), findsOneWidget);
+      final createButton = find.byKey(
+        const ValueKey('orders-create-order-fab'),
+      );
+      expect(createButton, findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Новый наряд'), findsNothing);
+      final createRect = tester.getRect(createButton);
       await tester.tap(find.text('Новый наряд'));
       expect(creates, 1);
       await tester.tap(find.text('Канбан'));
       await tester.pumpAndSettle();
+      expect(tester.getRect(createButton), createRect);
       final columns = [
         'issued',
         'accepted',

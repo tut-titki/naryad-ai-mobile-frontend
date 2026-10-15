@@ -10,7 +10,7 @@ void main() {
   for (final language in ['ru', 'kk']) {
     for (final brigades in [false, true]) {
       testWidgets(
-        'filtered chart and table for brigades=$brigades in $language',
+        'filtered chart and mobile components for brigades=$brigades in $language',
         (tester) async {
           tester.view.physicalSize = const Size(390, 844);
           tester.view.devicePixelRatio = 1;
@@ -97,17 +97,33 @@ void main() {
           await tester.tap(apply);
           await tester.pumpAndSettle();
           expect(queries.last, {'period': 'week', 'brigadeId': '1'});
-          final table = tester.widget<DataTable>(find.byType(DataTable));
-          expect(table.rows, hasLength(2));
+          final first = find.byKey(const ValueKey('rating-components-0'));
+          final second = find.byKey(const ValueKey('rating-components-1'));
+          expect(first, findsOneWidget);
+          expect(second, findsOneWidget);
           expect(
-            ((table.rows.first.cells.first.child as SizedBox).child as Text)
-                .data,
-            'First with a longer name',
+            find.descendant(
+              of: first,
+              matching: find.text('First with a longer name'),
+            ),
+            findsOneWidget,
           );
-          expect((table.rows.first.cells[1].child as Text).data, '79.4');
-          expect((table.rows.first.cells[2].child as Text).data, '40.5');
-          expect((table.rows.first.cells.last.child as Text).data, '-2');
-          expect((table.rows.last.cells[2].child as Text).data, '—');
+          expect(
+            find.descendant(of: first, matching: find.text('79.4/100')),
+            findsOneWidget,
+          );
+          expect(
+            find.descendant(of: first, matching: find.text('40.5')),
+            findsOneWidget,
+          );
+          expect(
+            find.descendant(of: first, matching: find.text('-2')),
+            findsOneWidget,
+          );
+          expect(
+            find.descendant(of: second, matching: find.text('—')),
+            findsNWidgets(6),
+          );
           expect(find.text('123456'), findsNothing);
           expect(
             tester
@@ -117,15 +133,10 @@ void main() {
                 .widthFactor,
             closeTo(.794, .00001),
           );
-          final tableScroll = find.byKey(const ValueKey('rating-table-scroll'));
-          await tester.ensureVisible(tableScroll);
-          final scrollState = tester.state<ScrollableState>(
-            find.descendant(of: tableScroll, matching: find.byType(Scrollable)),
+          expect(
+            find.byKey(const ValueKey('rating-table-scroll')),
+            findsNothing,
           );
-          expect(scrollState.position.maxScrollExtent, greaterThan(0));
-          await tester.drag(tableScroll, const Offset(-450, 0));
-          await tester.pumpAndSettle();
-          expect(scrollState.position.pixels, greaterThan(0));
           score = 65.2;
           final refresh = tester
               .state<RefreshIndicatorState>(find.byType(RefreshIndicator))
@@ -135,15 +146,8 @@ void main() {
           expect(queries.last, {'period': 'week', 'brigadeId': '1'});
           expect(queries, hasLength(2));
           expect(
-            (tester
-                        .widget<DataTable>(find.byType(DataTable))
-                        .rows
-                        .first
-                        .cells[1]
-                        .child
-                    as Text)
-                .data,
-            '65.2',
+            find.descendant(of: first, matching: find.text('65.2/100')),
+            findsOneWidget,
           );
           expect(
             tester

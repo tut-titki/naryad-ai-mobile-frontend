@@ -1,3 +1,4 @@
+import '../../master/widgets/master_ui.dart';
 import 'package:flutter/material.dart';
 import '../data/auth_session.dart';
 import '../widgets/auth_scope.dart';
@@ -73,7 +74,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     final s = AppLocalizations.of(context);
     return PopScope(
       canPop: !_busy,
-      child: Scaffold(
+      child: MasterScaffold(
+        enabled: AuthScope.maybeOf(context)?.user?.role == 'MASTER',
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(title: Text(s.changePasswordTitle)),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(20),

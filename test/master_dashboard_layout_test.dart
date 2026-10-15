@@ -17,7 +17,7 @@ Widget host(Widget child) => MaterialApp(
 void main() {
   for (final width in [320.0, 390.0, 1400.0]) {
     testWidgets(
-      'dashboard counters share a row and heading is in appbar at $width',
+      'dashboard counters adapt to width and heading stays in appbar at $width',
       (tester) async {
         tester.view.physicalSize = Size(width, 844);
         tester.view.devicePixelRatio = 1;
@@ -68,8 +68,15 @@ void main() {
               find.descendant(of: counters, matching: find.text(text)),
             ),
         ];
-        expect(points.map((p) => p.dy).toSet().length, 1);
-        expect(tester.getSize(counters).height, lessThanOrEqualTo(100));
+        expect(points.map((p) => p.dy).toSet().length, width < 600 ? 2 : 1);
+        expect(points[0].dy, points[1].dy);
+        if (width < 600) {
+          expect(points[2].dy, greaterThan(points[0].dy));
+        }
+        expect(
+          tester.getSize(counters).height,
+          lessThanOrEqualTo(width < 600 ? 220 : 110),
+        );
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox());
       },

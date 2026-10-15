@@ -1,3 +1,4 @@
+import '../../master/widgets/master_ui.dart';
 import 'package:flutter/material.dart';
 
 import 'package:mineral/l10n/ui_localization.dart';
@@ -14,7 +15,7 @@ class BrigadeMembersScreen extends StatelessWidget {
   final String brigade;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => MasterScaffold(
     backgroundColor: Colors.white,
     appBar: AppBar(title: Text(uiText(context, brigade))),
     body: ListenableBuilder(

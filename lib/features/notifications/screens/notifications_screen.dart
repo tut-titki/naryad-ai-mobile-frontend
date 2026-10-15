@@ -1,3 +1,4 @@
+import '../../master/widgets/master_ui.dart';
 import '../../../core/utils/enterprise_time.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -312,7 +313,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         child: InkWell(
           onTap: busy || _readingAll ? null : () => _open(item),
           child: Padding(
-            padding: const EdgeInsets.all(10),
+            padding: EdgeInsets.all(widget.source == null ? 14 : 10),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -476,7 +477,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       ],
     );
     if (!widget.standalone) return content;
-    return Scaffold(
+    return MasterScaffold(
+      enabled: widget.source == null,
       backgroundColor: const Color(0xFFF4F7FB),
       appBar: AppBar(
         title: Text(

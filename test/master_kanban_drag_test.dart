@@ -486,6 +486,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.getRect(fab), rect);
       await tester.tap(fab);
+
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 350));
       expect(find.byType(CreateOrderScreen), findsOneWidget);
@@ -494,6 +495,25 @@ void main() {
       await tester.tap(find.byType(NavigationDestination).at(1));
       await tester.pumpAndSettle();
       expect(fab, findsNothing);
+      final tabs = find.byType(TabBar);
+      expect(
+        find.ancestor(of: tabs, matching: find.byType(AppBar)),
+        findsOneWidget,
+      );
+      final tabBar = tester.widget<TabBar>(tabs);
+      expect(tabBar.labelColor, Colors.white);
+      expect(tabBar.unselectedLabelColor, Colors.white);
+      expect(tabBar.indicatorColor, Colors.white);
+      expect(
+        tester.getRect(tabs).bottom,
+        tester.getRect(find.byType(AppBar)).bottom,
+      );
+      await tester.tap(find.text('Канбан'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('kanban-horizontal-scroll')),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     },

@@ -1,3 +1,4 @@
+import '../../master/widgets/master_ui.dart';
 import '../widgets/master_scope_filters.dart';
 
 import 'dart:async';
@@ -23,6 +24,41 @@ import 'package:mineral/l10n/ui_localization.dart';
 import 'package:mineral/shared/models/models.dart';
 
 import 'package:mineral/shared/widgets/ui.dart';
+import '../../../core/theme/app_theme.dart';
+
+class OrdersViewTabs extends StatelessWidget implements PreferredSizeWidget {
+  const OrdersViewTabs({super.key, required this.onChanged});
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(48);
+
+  @override
+  Widget build(BuildContext context) => TabBar(
+    labelColor: Colors.white,
+    unselectedLabelColor: Colors.white,
+    indicatorColor: Colors.white,
+    dividerColor: Colors.transparent,
+    indicatorSize: TabBarIndicatorSize.tab,
+    onTap: (index) => onChanged(index == 1),
+    tabs: [
+      for (final tab in [
+        ('Список', LucideIcons.list),
+        ('Канбан', LucideIcons.columns3),
+      ])
+        Tab(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(tab.$2, size: 18),
+              const SizedBox(width: 8),
+              Text(uiText(context, tab.$1)),
+            ],
+          ),
+        ),
+    ],
+  );
+}
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({
@@ -33,6 +69,7 @@ class OrdersScreen extends StatefulWidget {
     required this.onOrder,
 
     required this.onCreate,
+    this.boardView,
   });
 
   final ApiServices api;
@@ -40,6 +77,7 @@ class OrdersScreen extends StatefulWidget {
   final ValueChanged<WorkOrderApiModel> onOrder;
 
   final VoidCallback onCreate;
+  final bool? boardView;
 
   @override
   State<OrdersScreen> createState() => _OrdersScreenState();
@@ -90,6 +128,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
   @override
   void initState() {
     super.initState();
+    board = widget.boardView ?? false;
 
     subscription = widget.api.realtime.changes.listen((_) {
       refreshTimer ??= Timer(const Duration(seconds: 1), () {
@@ -100,6 +139,15 @@ class _OrdersScreenState extends State<OrdersScreen> {
     });
 
     loadOrders();
+  }
+
+  @override
+  void didUpdateWidget(covariant OrdersScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.boardView != null && board != widget.boardView) {
+      board = widget.boardView!;
+      loadOrders(refresh: true);
+    }
   }
 
   @override
@@ -493,154 +541,153 @@ class _OrdersScreenState extends State<OrdersScreen> {
   static const _surface = Color(0xFFF5F7FB);
 
   @override
-  Widget build(BuildContext context) => ColoredBox(
-    color: _surface,
-    child: LayoutBuilder(
-      builder: (context, constraints) {
-        final content = Padding(
-          padding: EdgeInsets.all(
-            MediaQuery.sizeOf(context).width >= 1000 ? 28 : 18,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  FilledButton.icon(
-                    onPressed: widget.onCreate,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _blue,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(0, 48),
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    icon: const Icon(LucideIcons.plus, size: 18),
-                    label: Text(
-                      uiText(context, 'Новый наряд'),
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final screen = Scaffold(
+        backgroundColor: _surface,
+        appBar: widget.boardView == null
+            ? AppBar(
+                primary: false,
+                toolbarHeight: 0,
+                elevation: 0,
+                scrolledUnderElevation: 0,
+                backgroundColor: AppColors.primary,
+                flexibleSpace: const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: AppColors.profileHeaderGradient,
+                  ),
+                ),
+                bottom: PreferredSize(
+                  preferredSize: const Size.fromHeight(48),
+                  child: DefaultTabController(
+                    length: 2,
+                    child: OrdersViewTabs(
+                      onChanged: (nextBoard) {
+                        if (board == nextBoard) return;
+                        setState(() => board = nextBoard);
+                        loadOrders(refresh: true);
+                      },
                     ),
                   ),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      setState(() => board = !board);
-                      loadOrders(refresh: true);
-                    },
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: _blue,
-                      backgroundColor: Colors.white,
-                      minimumSize: const Size(0, 48),
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    icon: Icon(
-                      board ? LucideIcons.list : LucideIcons.columns3,
-                      size: 18,
-                    ),
-                    label: Text(
-                      uiText(context, board ? 'Список' : 'Канбан'),
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                  ),
-                ],
+                ),
+              )
+            : null,
+        floatingActionButton: FloatingActionButton.extended(
+          key: const ValueKey('orders-create-order-fab'),
+          heroTag: 'orders-create-order',
+          onPressed: widget.onCreate,
+          backgroundColor: _blue,
+          foregroundColor: Colors.white,
+          icon: const Icon(LucideIcons.plus, size: 20),
+          label: Text(uiText(context, 'Новый наряд')),
+        ),
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            final content = Padding(
+              padding: EdgeInsets.all(
+                MediaQuery.sizeOf(context).width >= 1000 ? 28 : 16,
               ),
-              const SizedBox(height: 16),
-              Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: searchController,
-                      onChanged: (_) => setState(() {}),
-                      style: const TextStyle(fontSize: 13, color: _ink),
-                      decoration: InputDecoration(
-                        hintText: uiText(
-                          context,
-                          'Номер, работа или оборудование',
-                        ),
-                        hintStyle: const TextStyle(fontSize: 12, color: _muted),
-                        prefixIcon: const Icon(
-                          LucideIcons.search,
-                          size: 19,
-                          color: _muted,
-                        ),
-                        suffixIcon: searchController.text.isEmpty
-                            ? null
-                            : IconButton(
-                                tooltip: strings(context).clearSearch,
-                                icon: const Icon(LucideIcons.x, size: 18),
-                                onPressed: () =>
-                                    setState(searchController.clear),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: searchController,
+                          onChanged: (_) => setState(() {}),
+                          style: const TextStyle(fontSize: 13, color: _ink),
+                          decoration: InputDecoration(
+                            hintText: uiText(
+                              context,
+                              'Номер, работа или оборудование',
+                            ),
+                            hintStyle: const TextStyle(
+                              fontSize: 12,
+                              color: _muted,
+                            ),
+                            prefixIcon: const Icon(
+                              LucideIcons.search,
+                              size: 19,
+                              color: _muted,
+                            ),
+                            suffixIcon: searchController.text.isEmpty
+                                ? null
+                                : IconButton(
+                                    tooltip: strings(context).clearSearch,
+                                    icon: const Icon(LucideIcons.x, size: 18),
+                                    onPressed: () =>
+                                        setState(searchController.clear),
+                                  ),
+                            filled: true,
+                            fillColor: Colors.white,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 14,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFE8EDF4),
                               ),
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 14,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: Color(0xFFE8EDF4),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: _blue,
-                            width: 1.5,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: _blue,
+                                width: 1.5,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Badge(
-                    isLabelVisible: activeFilters > 0,
-                    label: Text('$activeFilters'),
-                    child: IconButton.outlined(
-                      tooltip: strings(context).filters,
-                      onPressed: openFilters,
-                      style: IconButton.styleFrom(
-                        minimumSize: const Size(50, 50),
-                        foregroundColor: _blue,
-                        backgroundColor: activeFilters > 0
-                            ? const Color(0xFFEAF2FE)
-                            : Colors.white,
-                        side: const BorderSide(color: Color(0xFFE8EDF4)),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                      const SizedBox(width: 10),
+                      Badge(
+                        isLabelVisible: activeFilters > 0,
+                        label: Text('$activeFilters'),
+                        child: IconButton.outlined(
+                          tooltip: strings(context).filters,
+                          onPressed: openFilters,
+                          style: IconButton.styleFrom(
+                            minimumSize: const Size(50, 50),
+                            foregroundColor: _blue,
+                            backgroundColor: activeFilters > 0
+                                ? const Color(0xFFEAF2FE)
+                                : Colors.white,
+                            side: const BorderSide(color: Color(0xFFE8EDF4)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          icon: const Icon(
+                            LucideIcons.slidersHorizontal,
+                            size: 20,
+                          ),
                         ),
                       ),
-                      icon: const Icon(LucideIcons.slidersHorizontal, size: 20),
-                    ),
+                    ],
                   ),
+                  const SizedBox(height: 16),
+                  Expanded(child: _results()),
                 ],
               ),
-              const SizedBox(height: 16),
-              Expanded(child: _results()),
-            ],
-          ),
-        );
-        return constraints.hasBoundedHeight
-            ? content
-            : SizedBox(
-                height: MediaQuery.sizeOf(context).height,
-                child: content,
-              );
-      },
-    ),
+            );
+            return constraints.hasBoundedHeight
+                ? content
+                : SizedBox(
+                    height: MediaQuery.sizeOf(context).height,
+                    child: content,
+                  );
+          },
+        ),
+      );
+      return constraints.hasBoundedHeight
+          ? screen
+          : SizedBox(height: MediaQuery.sizeOf(context).height, child: screen);
+    },
   );
 
   Widget _results() {
@@ -677,6 +724,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
             )
           : ListView.builder(
               key: const ValueKey('orders-list'),
+              padding: const EdgeInsets.only(bottom: 88),
               physics: const AlwaysScrollableScrollPhysics(),
               itemCount: filtered.length,
               itemBuilder: (context, index) => ApiOrderCard(
@@ -936,155 +984,136 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
 class ApiOrderCard extends StatelessWidget {
   const ApiOrderCard({super.key, required this.order, required this.onTap});
-
   final WorkOrderApiModel order;
-
   final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
     final equipment = uiText(context, order.equipment.name);
-
     final area = uiText(context, order.area.name);
-
     final assignee = order.assignee.fullName;
-
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-
+      padding: const EdgeInsets.only(bottom: 10),
       child: Material(
         color: Colors.white,
-
-        borderRadius: BorderRadius.circular(16),
-
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(
+            color: order.isEmergency
+                ? const Color(0xFFFECACA)
+                : MasterColors.line,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-
-          borderRadius: BorderRadius.circular(16),
-
-          child: Container(
-            padding: const EdgeInsets.all(18),
-
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-
-              border: Border.all(
-                color: order.isEmergency
-                    ? const Color(0xFFFECACA)
-                    : const Color(0xFFE8EDF4),
-              ),
-            ),
-
+          child: Padding(
+            padding: const EdgeInsets.all(14),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Wrap(
-                  spacing: 12,
-
-                  runSpacing: 8,
-
+                Row(
                   children: [
-                    Text(
-                      uiText(context, 'НАРЯД №${order.number}'),
-
-                      style: const TextStyle(
-                        color: muted,
-
-                        fontSize: 11,
-
-                        letterSpacing: 1,
-
-                        fontWeight: FontWeight.w700,
+                    Expanded(
+                      child: Text(
+                        uiText(context, 'НАРЯД №${order.number}'),
+                        style: const TextStyle(
+                          color: MasterColors.muted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
-
-                    _ApiStatusTag(
-                      text: order.status.label,
-
-                      color: _statusColor(order.status),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: _ApiStatusTag(
+                        text: order.status.label,
+                        color: _statusColor(order.status),
+                      ),
                     ),
                   ],
                 ),
-
-                const SizedBox(height: 14),
-
+                const SizedBox(height: 12),
                 Text(
                   uiText(context, order.description),
-
                   maxLines: 2,
-
                   overflow: TextOverflow.ellipsis,
-
                   style: const TextStyle(
                     fontSize: 16,
-
                     fontWeight: FontWeight.w700,
-
                     color: ink,
                   ),
                 ),
-
-                const SizedBox(height: 7),
-
-                Text(
-                  '$equipment · $area',
-
-                  style: const TextStyle(fontSize: 13, color: muted),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: MasterColors.background,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        LucideIcons.factory,
+                        size: 18,
+                        color: MasterColors.blue,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '$equipment · $area',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            height: 1.4,
+                            color: MasterColors.ink,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-
-                const SizedBox(height: 7),
-
+                const SizedBox(height: 10),
                 Row(
                   children: [
                     const Icon(
                       LucideIcons.userRound,
                       size: 16,
-                      color: Color(0xFF637B9E),
+                      color: MasterColors.muted,
                     ),
-
-                    const SizedBox(width: 5),
-
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         assignee,
-
-                        style: const TextStyle(fontSize: 13, color: muted),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: MasterColors.muted,
+                        ),
                       ),
                     ),
                   ],
                 ),
-
-                const SizedBox(height: 16),
-
+                const SizedBox(height: 12),
+                const Divider(height: 1, color: MasterColors.line),
+                const SizedBox(height: 10),
                 Wrap(
                   spacing: 8,
-
                   runSpacing: 8,
-
                   crossAxisAlignment: WrapCrossAlignment.center,
-
                   children: [
                     _ApiStatusTag(
                       text: order.priority.label,
-
                       color: _priorityColor(order.priority),
                     ),
-
                     Text(
                       uiText(
                         context,
-
                         'До ${dateLabel(order.deadline)} ${timeLabel(order.deadline)}',
                       ),
-
                       style: TextStyle(
                         fontSize: 12,
-
                         color: order.isOverdue ? Colors.red : muted,
                       ),
                     ),
-
                     if (order.isOverdue)
                       const _ApiStatusTag(text: 'Просрочен', color: Colors.red),
                   ],
@@ -1214,7 +1243,7 @@ class _ApiKanbanColumnState extends State<_ApiKanbanColumn> {
                 key: PageStorageKey('kanban-orders-${widget.columnId}'),
                 controller: _scrollController,
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: EdgeInsets.zero,
+                padding: const EdgeInsets.only(bottom: 88),
                 itemCount: widget.orders.isEmpty ? 1 : widget.orders.length,
                 itemBuilder: (context, index) => widget.orders.isEmpty
                     ? Padding(

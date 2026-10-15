@@ -1,3 +1,4 @@
+import '../../master/widgets/master_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../core/api/api_services.dart';
@@ -123,26 +124,20 @@ class _MasterChatScreenState extends State<MasterChatScreen> {
           onRefresh: _loadHistory,
           isLoading: _loading && _messages.isEmpty,
           scrollController: _historyScroll,
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                uiText(context, 'Ассистент мастера'),
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                backendText(
+              MasterIntro(
+                title: 'Ассистент мастера',
+                icon: LucideIcons.messageCircle,
+                subtitle: backendText(
                   context,
                   'Задайте вопрос о нарядах, исполнителях или итогах смены.',
                   'Нарядтар, орындаушылар немесе ауысым қорытындысы туралы сұрақ қойыңыз.',
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               if (_historyError != null) ...[
                 BackendError(
                   message: backendError(context, _historyError!),
@@ -180,7 +175,7 @@ class _MasterChatScreenState extends State<MasterChatScreen> {
       ),
       Container(
         color: Colors.white,
-        padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
         child: SafeArea(
           top: false,
           child: Form(
@@ -244,28 +239,52 @@ class _MasterChatScreenState extends State<MasterChatScreen> {
   );
   Widget _bubble(BuildContext context, _ChatMessage message) => Padding(
     padding: const EdgeInsets.only(bottom: 12),
-    child: Align(
-      alignment: message.fromMaster
-          ? Alignment.centerRight
-          : Alignment.centerLeft,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 600),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: message.fromMaster ? const Color(0xFF01408B) : Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: message.fromMaster
-              ? null
-              : Border.all(color: const Color(0xFFE6EDF5)),
-        ),
-        child: SelectableText(
-          message.text,
-          style: TextStyle(
-            color: message.fromMaster ? Colors.white : const Color(0xFF172B4D),
-            height: 1.5,
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: message.fromMaster
+          ? MainAxisAlignment.end
+          : MainAxisAlignment.start,
+      children: [
+        if (!message.fromMaster) ...[
+          const CircleAvatar(
+            radius: 15,
+            backgroundColor: MasterColors.tint,
+            child: Icon(
+              LucideIcons.sparkles,
+              size: 16,
+              color: MasterColors.blue,
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+        Flexible(
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 600),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: message.fromMaster ? MasterColors.blue : Colors.white,
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(14),
+                topRight: const Radius.circular(14),
+                bottomLeft: Radius.circular(message.fromMaster ? 14 : 4),
+                bottomRight: Radius.circular(message.fromMaster ? 4 : 14),
+              ),
+              border: message.fromMaster
+                  ? null
+                  : Border.all(color: MasterColors.line),
+            ),
+            child: SelectableText(
+              message.text,
+              style: TextStyle(
+                color: message.fromMaster ? Colors.white : MasterColors.ink,
+                height: 1.5,
+                fontSize: 14,
+              ),
+            ),
           ),
         ),
-      ),
+        if (message.fromMaster) const SizedBox(width: 4),
+      ],
     ),
   );
 }

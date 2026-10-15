@@ -1,3 +1,4 @@
+import '../../master/widgets/master_ui.dart';
 import 'dart:async';
 import 'package:uuid/uuid.dart';
 import 'package:file_saver/file_saver.dart';
@@ -518,8 +519,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
+    return MasterScaffold(
+      backgroundColor: MasterColors.background,
       appBar: AppBar(
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
@@ -533,12 +534,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               : '${uiText(context, 'Наряд')} №${order!.number}',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white),
         ),
         actions: [
           IconButton(
             tooltip: uiText(context, 'Отчёт по наряду'),
-            icon: const Icon(Icons.summarize_outlined, color: brand),
+            icon: const Icon(Icons.summarize_outlined, color: Colors.white),
             onPressed: () => showDialog<void>(
               context: context,
               builder: (dialogContext) => AlertDialog(
@@ -565,7 +566,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           ),
           IconButton(
             tooltip: backendText(context, 'Отчёт PDF', 'PDF есебі'),
-            icon: const Icon(Icons.file_download_outlined, color: brand),
+            icon: const Icon(Icons.file_download_outlined, color: Colors.white),
             onPressed: order == null || actionLoading ? null : _exportOrder,
           ),
         ],
@@ -601,7 +602,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           onRefresh: _load,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
             child: Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 1080),
@@ -612,11 +613,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
                     const SizedBox(height: 16),
 
-                    _buildActions(current),
+                    _buildDescription(current),
 
                     const SizedBox(height: 16),
 
-                    _buildDescription(current),
+                    _buildActions(current),
 
                     const SizedBox(height: 16),
 
@@ -1768,47 +1769,25 @@ class _SectionCard extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
-    const accent = Color(0xFF01408B);
-    const line = Color(0xFFE7ECF3);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (title != null) ...[
-            Row(
-              children: [
-                Container(
-                  width: 3,
-                  height: 19,
-                  decoration: BoxDecoration(
-                    color: accent,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                ),
-                const SizedBox(width: 11),
-                Expanded(
-                  child: Text(
-                    uiText(context, title!),
-                    style: const TextStyle(
-                      color: Color(0xFF172B4D),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ],
+  Widget build(BuildContext context) => MasterSurface(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (title != null) ...[
+          Text(
+            uiText(context, title!),
+            style: const TextStyle(
+              color: MasterColors.muted,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
             ),
-            const SizedBox(height: 14),
-          ],
-          child,
-          const SizedBox(height: 18),
-          const Divider(height: 1, color: line),
+          ),
+          const SizedBox(height: 12),
         ],
-      ),
-    );
-  }
+        child,
+      ],
+    ),
+  );
 }
 
 // MARK: - Info row

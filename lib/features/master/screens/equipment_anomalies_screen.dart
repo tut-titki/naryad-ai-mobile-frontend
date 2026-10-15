@@ -1,3 +1,4 @@
+import '../widgets/master_ui.dart';
 import 'package:flutter/material.dart';
 import '../../../core/api/api_services.dart';
 import '../../../core/api/backend_document.dart';
@@ -11,7 +12,7 @@ class EquipmentAnomaliesScreen extends StatelessWidget {
   final ApiServices api;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => MasterScaffold(
     appBar: AppBar(
       title: Text(uiText(context, 'Аномалии оборудования')),
       backgroundColor: Colors.white,
@@ -19,12 +20,15 @@ class EquipmentAnomaliesScreen extends StatelessWidget {
       surfaceTintColor: Colors.transparent,
     ),
     body: BackendRefreshView(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       child: BackendSection<BackendDocument>(
         load: api.analytics.getAnomalies,
         changes: api.realtime.changes,
-        builder: (context, data) =>
-            DashboardInsights(document: data, forecast: false),
+        builder: (context, data) => MasterSection(
+          title: uiText(context, 'Аномалии оборудования'),
+          icon: Icons.insights_outlined,
+          child: DashboardInsights(document: data, forecast: false),
+        ),
       ),
     ),
   );

@@ -1,3 +1,4 @@
+import '../../master/widgets/master_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -183,6 +184,113 @@ class RatingReportView extends StatelessWidget {
       ('complexity', 'Сложность', 'Күрделілік'),
       ('rejects', 'Штраф за отказы', 'Бас тарту үшін айып'),
     ];
+    if (MediaQuery.sizeOf(context).width < 600) {
+      return _card(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _heading(
+              backendText(
+                context,
+                'Составляющие рейтинга',
+                'Рейтингтің құрамдас бөліктері',
+              ),
+              LucideIcons.table,
+            ),
+            const SizedBox(height: 12),
+            for (var i = 0; i < entries.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Material(
+                  key: ValueKey('rating-components-$i'),
+                  color: MasterColors.background,
+                  borderRadius: BorderRadius.circular(12),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => onDetails(entries[i], i + 1),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  _name(entries[i]),
+                                  style: const TextStyle(
+                                    color: MasterColors.blue,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${_label(entries[i]['score'])}/100',
+                                style: const TextStyle(
+                                  color: MasterColors.blue,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          LayoutBuilder(
+                            builder: (context, constraints) => Wrap(
+                              spacing: 8,
+                              runSpacing: 10,
+                              children: [
+                                for (final component in components)
+                                  SizedBox(
+                                    width: (constraints.maxWidth - 8) / 2,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          backendText(
+                                            context,
+                                            component.$2,
+                                            component.$3,
+                                          ),
+                                          style: const TextStyle(
+                                            color: MasterColors.muted,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          _label(
+                                            entries[i]['points'] is Map
+                                                ? entries[i]['points'][component
+                                                      .$1]
+                                                : null,
+                                          ),
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            color: component.$1 == 'rejects'
+                                                ? const Color(0xFFDC2626)
+                                                : MasterColors.ink,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
     return _card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -1,15 +1,14 @@
+import '../../../shared/widgets/employee_profile_layout.dart';
 import '../models/executor_rating_period.dart';
 import 'package:mineral/core/utils/enterprise_time.dart';
 import 'package:flutter/material.dart';
 import '../../../shared/widgets/app_refresh_indicator.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:mineral/features/auth/screens/change_password_screen.dart';
 import 'package:mineral/features/auth/widgets/auth_scope.dart';
 import 'package:mineral/features/auth/widgets/logout_confirmation_sheet.dart';
 import 'package:mineral/features/auth/data/auth_session.dart';
 import 'package:mineral/features/executor/data/executor_repository.dart';
 import 'package:mineral/features/executor/models/execution_assessment.dart';
-import 'package:mineral/l10n/language_switcher.dart';
 import 'package:mineral/l10n/ui_localization.dart';
 
 class ExecutorProfileScreen extends StatefulWidget {
@@ -217,228 +216,45 @@ class _ExecutorProfileScreenState extends State<ExecutorProfileScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.zero,
         children: [
-          Container(
-            decoration: const BoxDecoration(gradient: _gradient),
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 18),
-            child: Column(
+          EmployeeProfileLayout(
+            name: employee.name,
+            initials: employee.initials,
+            subtitle: uiText(context, employee.specialty),
+            onShift: employee.onShift,
+            showAccountActions: AuthScope.maybeOf(context) != null,
+            loggingOut: _loggingOut,
+            onLogout: () => _logout(context),
+            identityDetails: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    CircleAvatar(
-                      radius: 27,
-                      backgroundColor: Colors.white,
-                      child: Text(
-                        employee.initials,
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                          color: _blue,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            employee.name,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              height: 1.3,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            uiText(context, employee.specialty),
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFFC8DDF5),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: employee.onShift
-                                  ? const Color(0xFFDDF5E7)
-                                  : const Color(0xFFE8EDF4),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  LucideIcons.circle,
-                                  size: 7,
-                                  color: employee.onShift
-                                      ? const Color(0xFF15803D)
-                                      : const Color(0xFF7A8597),
-                                ),
-                                const SizedBox(width: 5),
-                                Flexible(
-                                  child: Text(
-                                    uiText(
-                                      context,
-                                      employee.onShift
-                                          ? 'На смене'
-                                          : 'Не на смене',
-                                    ),
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: employee.onShift
-                                          ? const Color(0xFF15803D)
-                                          : const Color(0xFF7A8597),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                Expanded(
+                  child: ProfileIdentityDetail(
+                    LucideIcons.users,
+                    uiText(context, 'Бригада'),
+                    uiText(context, employee.brigade),
+                  ),
                 ),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _identityDetail(
-                        LucideIcons.users,
-                        uiText(context, 'Бригада'),
-                        uiText(context, employee.brigade),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _identityDetail(
-                        LucideIcons.award,
-                        uiText(context, 'Разряд'),
-                        employee.grade?.toString() ?? '—',
-                      ),
-                    ),
-                  ],
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ProfileIdentityDetail(
+                    LucideIcons.award,
+                    uiText(context, 'Разряд'),
+                    employee.grade?.toString() ?? '—',
+                  ),
                 ),
               ],
             ),
-          ),
-          Container(
-            decoration: const BoxDecoration(gradient: _gradient),
-            child: Material(
-              color: const Color(0xFFF5F7FB),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(28),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 14, 14, 28),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    FutureBuilder<ExecutorRating?>(
-                      future: _ratingLoad,
-                      builder: (context, snapshot) => _rating(
-                        context,
-                        store.executorRating(employeeId, period: _period),
-                        loading:
-                            snapshot.connectionState != ConnectionState.done,
-                        error: snapshot.hasError
-                            ? snapshot.error is ApiException
-                                  ? (snapshot.error as ApiException).message
-                                  : strings(context).refreshFailed
-                            : null,
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 22, 8, 10),
-                      child: Text(
-                        uiText(context, 'Настройки'),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF7A8597),
-                        ),
-                      ),
-                    ),
-                    Material(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      clipBehavior: Clip.antiAlias,
-                      child: Column(
-                        children: [
-                          const ProfileLanguageTile(),
-                          if (AuthScope.maybeOf(context) != null) ...[
-                            const Divider(
-                              height: 1,
-                              indent: 16,
-                              endIndent: 16,
-                              color: Color(0xFFE8EDF4),
-                            ),
-                            InkWell(
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute<void>(
-                                  builder: (_) => const ChangePasswordScreen(),
-                                ),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Row(
-                                  children: [
-                                    _settingIcon(LucideIcons.lockKeyhole),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Text(
-                                        strings(context).changePasswordTitle,
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ),
-                                    const Icon(
-                                      LucideIcons.chevronRight,
-                                      size: 18,
-                                      color: Color(0xFF7A8597),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    TextButton.icon(
-                      key: const ValueKey('profile-logout'),
-                      style: TextButton.styleFrom(
-                        minimumSize: const Size.fromHeight(52),
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        backgroundColor: const Color(0xFFFFECEE),
-                        foregroundColor: const Color(0xFFB42318),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      onPressed: _loggingOut ? null : () => _logout(context),
-                      icon: const Icon(LucideIcons.logOut, size: 20),
-                      label: Row(
-                        children: [
-                          Expanded(child: Text(uiText(context, 'Выйти'))),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+            beforeSettings: FutureBuilder<ExecutorRating?>(
+              future: _ratingLoad,
+              builder: (context, snapshot) => _rating(
+                context,
+                store.executorRating(employeeId, period: _period),
+                loading: snapshot.connectionState != ConnectionState.done,
+                error: snapshot.hasError
+                    ? snapshot.error is ApiException
+                          ? (snapshot.error as ApiException).message
+                          : strings(context).refreshFailed
+                    : null,
               ),
             ),
           ),
@@ -446,44 +262,6 @@ class _ExecutorProfileScreenState extends State<ExecutorProfileScreen> {
       ),
     );
   }
-
-  Widget _identityDetail(IconData icon, String label, String value) =>
-      Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: const Color(0x20FFFFFF),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 22, color: const Color(0xFFDDEBFF)),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFFC8DDF5),
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    value.isEmpty ? '—' : value,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
 
   Widget _settingIcon(IconData icon) => Container(
     padding: const EdgeInsets.all(6),

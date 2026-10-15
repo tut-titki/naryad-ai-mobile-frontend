@@ -1,3 +1,4 @@
+import '../../master/widgets/master_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:file_saver/file_saver.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -11,6 +12,7 @@ import '../../../shared/widgets/backend_section.dart';
 import '../../../shared/widgets/ui.dart';
 import '../../orders/widgets/master_scope_filters.dart';
 import '../widgets/rating_report_view.dart';
+import '../widgets/report_content.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key, required this.api, this.onExportingChanged});
@@ -138,20 +140,8 @@ class ReportsScreenState extends State<ReportsScreen> {
 
   Widget _card({
     required Widget child,
-    EdgeInsetsGeometry padding = const EdgeInsets.all(16),
-  }) {
-    return Material(
-      color: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: _border),
-      ),
-      child: SizedBox(
-        width: double.infinity,
-        child: Padding(padding: padding, child: child),
-      ),
-    );
-  }
+    EdgeInsetsGeometry padding = const EdgeInsets.all(14),
+  }) => MasterSurface(padding: padding, child: child);
 
   Widget _sectionTitle(String title, {IconData? icon, Widget? trailing}) {
     return Row(
@@ -317,11 +307,6 @@ class ReportsScreenState extends State<ReportsScreen> {
                           'Простои оборудования',
                           'Жабдықтың тоқтап тұруы',
                         ),
-                        (
-                          'anomalies',
-                          'Аномалии и зависимости',
-                          'Аномалиялар мен байланыстар',
-                        ),
                       ])
                         DropdownMenuItem(
                           value: choice.$1,
@@ -438,65 +423,32 @@ class ReportsScreenState extends State<ReportsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final compact = constraints.maxWidth < 480;
-
-            if (compact) {
-              return Column(
-                children: [
-                  for (final metric in metrics) ...[
-                    _metricCard(
-                      title: metric.$2,
-                      value: '${map[metric.$1] ?? '—'}',
-                      icon: metric.$3,
-                      color: metric.$4,
-                    ),
-                    const SizedBox(height: 10),
-                  ],
-                ],
-              );
-            }
-
-            return Row(
-              children: [
-                for (var i = 0; i < metrics.length; i++) ...[
-                  Expanded(
-                    child: _metricCard(
-                      title: metrics[i].$2,
-                      value: '${map[metrics[i].$1] ?? '—'}',
-                      icon: metrics[i].$3,
-                      color: metrics[i].$4,
-                    ),
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final metric in metrics) ...[
+                if (metric != metrics.first) const SizedBox(width: 8),
+                Expanded(
+                  key: ValueKey('report-kpi-${metric.$1}'),
+                  child: _metricCard(
+                    title: metric.$2,
+                    value: ReportContent.hasData(map[metric.$1])
+                        ? '${map[metric.$1]}'
+                        : backendText(context, 'Нет данных', 'Деректер жоқ'),
+                    icon: metric.$3,
+                    color: metric.$4,
                   ),
-                  if (i < metrics.length - 1) const SizedBox(width: 10),
-                ],
+                ),
               ],
-            );
-          },
+            ],
+          ),
         ),
         const SizedBox(height: 14),
-        _card(
-          child: BackendDocumentView(
-            document: BackendDocument.fromJson({
-              for (final entry in map.entries)
-                if (!{'issued', 'completed', 'overdue'}.contains(entry.key))
-                  entry.key
-                      .toString(): entry.key == 'load' && entry.value is List
-                      ? (entry.value as List).where((employee) {
-                          if (employee is! Map) return false;
-                          final assigned =
-                              num.tryParse('${employee['assigned']}') ?? 0;
-                          final completed =
-                              num.tryParse('${employee['completed']}') ?? 0;
-                          final executorId = scope['executorId'];
-                          return (assigned > 0 || completed > 0) &&
-                              (executorId == null ||
-                                  '${employee['id']}' == '$executorId');
-                        }).toList()
-                      : entry.value,
-            }),
-          ),
+        ReportContent(
+          report: 'shift',
+          data: map,
+          executorId: scope['executorId'],
         ),
       ],
     );
@@ -507,45 +459,36 @@ class ReportsScreenState extends State<ReportsScreen> {
     required String value,
     required IconData icon,
     required Color color,
-  }) {
-    return _card(
-      padding: const EdgeInsets.all(14),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: .09),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, size: 21, color: color),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(color: _muted, fontSize: 11),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    color: _ink,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
+  }) => MasterSurface(
+    padding: const EdgeInsets.all(10),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: color),
+        const SizedBox(height: 6),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: color,
             ),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+        const SizedBox(height: 6),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 12,
+            height: 1.3,
+            color: MasterColors.muted,
+          ),
+        ),
+      ],
+    ),
+  );
 
   // ============================================================
   // RATINGS
@@ -553,7 +496,7 @@ class ReportsScreenState extends State<ReportsScreen> {
 
   Widget _ratingResults(BuildContext context, BackendDocument data) {
     if (data.value is! List || (data.value as List).isEmpty) {
-      return _card(child: BackendDocumentView(document: data));
+      return ReportContent(report: report, data: data.value);
     }
 
     final entries = (data.value as List).whereType<Map>().toList()
@@ -753,6 +696,9 @@ class ReportsScreenState extends State<ReportsScreen> {
   // ============================================================
 
   Widget _result(BuildContext context, BackendDocument data) {
+    if (!ReportContent.hasData(data.value)) {
+      return ReportContent(report: report, data: data.value);
+    }
     if (report == 'ratings' || report == 'brigade-ratings') {
       return _ratingResults(context, data);
     }
@@ -761,12 +707,96 @@ class ReportsScreenState extends State<ReportsScreen> {
       return _shiftResults(context, data);
     }
 
-    return _card(child: BackendDocumentView(document: data));
+    return ReportContent(report: report, data: data.value);
   }
 
   // ============================================================
   // MAIN BUILD
   // ============================================================
+
+  Widget _filterHeader() {
+    final title = switch (report) {
+      'shift' => backendText(context, 'Отчёт по смене', 'Ауысым есебі'),
+      'ratings' => backendText(
+        context,
+        'Рейтинг исполнителей',
+        'Орындаушылар рейтингі',
+      ),
+      'brigade-ratings' => backendText(
+        context,
+        'Рейтинг бригад',
+        'Бригадалар рейтингі',
+      ),
+      'materials' => backendText(
+        context,
+        'Списанные материалы',
+        'Жұмсалған материалдар',
+      ),
+      'downtime' => backendText(
+        context,
+        'Простои оборудования',
+        'Жабдықтың тоқтап тұруы',
+      ),
+      _ => report,
+    };
+    final periodLabel = switch (preset) {
+      'shift' => backendText(context, 'Смена', 'Ауысым'),
+      'today' => strings(context).todayPeriod,
+      'week' => strings(context).weekPeriod,
+      'month' => strings(context).monthPeriod,
+      'all' => strings(context).allTimePeriod,
+      _ =>
+        selectedPeriod == null
+            ? '—'
+            : '${dateLabel(selectedPeriod!.start)} — ${dateLabel(selectedPeriod!.end)}',
+    };
+    return MasterSurface(
+      color: MasterColors.tint,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                LucideIcons.chartNoAxesCombined,
+                size: 22,
+                color: MasterColors.blue,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: MasterColors.blue,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                '${backendText(context, 'Период', 'Кезең')}: $periodLabel',
+                style: const TextStyle(color: MasterColors.muted, fontSize: 12),
+              ),
+              OutlinedButton.icon(
+                onPressed: _openFilters,
+                icon: const Icon(LucideIcons.slidersHorizontal, size: 18),
+                label: Text(uiText(context, 'Фильтры')),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -776,14 +806,7 @@ class ReportsScreenState extends State<ReportsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: OutlinedButton.icon(
-              onPressed: _openFilters,
-              icon: const Icon(LucideIcons.slidersHorizontal, size: 18),
-              label: Text(uiText(context, 'Фильтры')),
-            ),
-          ),
+          _filterHeader(),
           const SizedBox(height: 20),
           BackendSection<BackendDocument>(
             key: ValueKey('$report-$query'),

@@ -1,4 +1,4 @@
-
+import '../../master/widgets/master_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -11,11 +11,7 @@ import '../../../shared/widgets/backend_section.dart';
 import '../data/assistant_api.dart';
 
 class AiScreen extends StatefulWidget {
-  const AiScreen({
-    super.key,
-    required this.api,
-    required this.onOrder,
-  });
+  const AiScreen({super.key, required this.api, required this.onOrder});
 
   final ApiServices api;
   final ValueChanged<WorkOrderApiModel> onOrder;
@@ -92,19 +88,14 @@ class _AiScreenState extends State<AiScreen> {
           _hero(context),
           const SizedBox(height: 22),
 
-          _sectionHeading(
-            'Контроль нарядов',
-            LucideIcons.clipboardList,
-          ),
+          _sectionHeading('Контроль нарядов', LucideIcons.clipboardList),
           const SizedBox(height: 12),
 
           BackendSection<List<WorkOrderApiModel>>(
             load: widget.api.workOrders.getAllWorkOrders,
             changes: widget.api.realtime.changes,
             builder: (context, orders) {
-              final overdue = orders
-                  .where((order) => order.isOverdue)
-                  .toList();
+              final overdue = orders.where((order) => order.isOverdue).toList();
 
               final review = orders
                   .where((order) => order.waitingForMasterReview)
@@ -137,10 +128,7 @@ class _AiScreenState extends State<AiScreen> {
 
           const SizedBox(height: 24),
 
-          _sectionHeading(
-            'Мониторинг оборудования',
-            LucideIcons.activity,
-          ),
+          _sectionHeading('Мониторинг оборудования', LucideIcons.activity),
           const SizedBox(height: 12),
 
           _surface(
@@ -164,10 +152,7 @@ class _AiScreenState extends State<AiScreen> {
 
           const SizedBox(height: 24),
 
-          _sectionHeading(
-            'Ассистент мастера',
-            LucideIcons.messageCircle,
-          ),
+          _sectionHeading('Ассистент мастера', LucideIcons.messageCircle),
           const SizedBox(height: 12),
 
           _assistantPanel(context),
@@ -199,11 +184,7 @@ class _AiScreenState extends State<AiScreen> {
               color: Colors.white.withValues(alpha: .14),
               borderRadius: BorderRadius.circular(13),
             ),
-            child: const Icon(
-              LucideIcons.bot,
-              color: Colors.white,
-              size: 25,
-            ),
+            child: const Icon(LucideIcons.bot, color: Colors.white, size: 25),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -241,10 +222,7 @@ class _AiScreenState extends State<AiScreen> {
                     const SizedBox(width: 7),
                     Expanded(
                       child: Text(
-                        uiText(
-                          context,
-                          'Финальное решение принимает мастер',
-                        ),
+                        uiText(context, 'Финальное решение принимает мастер'),
                         style: const TextStyle(
                           color: Color(0xFFDDEBFF),
                           fontSize: 11,
@@ -295,10 +273,7 @@ class _AiScreenState extends State<AiScreen> {
               ),
             ),
             Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 10,
-                vertical: 5,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
                 color: color.withValues(alpha: .08),
                 borderRadius: BorderRadius.circular(8),
@@ -329,10 +304,7 @@ class _AiScreenState extends State<AiScreen> {
                 Expanded(
                   child: Text(
                     uiText(context, emptyText),
-                    style: const TextStyle(
-                      color: _muted,
-                      fontSize: 12,
-                    ),
+                    style: const TextStyle(color: _muted, fontSize: 12),
                   ),
                 ),
               ],
@@ -340,10 +312,7 @@ class _AiScreenState extends State<AiScreen> {
           )
         else
           for (final order in orders) ...[
-            ApiOrderCard(
-              order: order,
-              onTap: () => widget.onOrder(order),
-            ),
+            ApiOrderCard(order: order, onTap: () => widget.onOrder(order)),
             const SizedBox(height: 9),
           ],
       ],
@@ -367,11 +336,7 @@ class _AiScreenState extends State<AiScreen> {
                     color: _lightBlue,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(
-                    LucideIcons.bot,
-                    color: _blue,
-                    size: 20,
-                  ),
+                  child: const Icon(LucideIcons.bot, color: _blue, size: 20),
                 ),
                 const SizedBox(width: 11),
                 const Expanded(
@@ -389,10 +354,7 @@ class _AiScreenState extends State<AiScreen> {
                       SizedBox(height: 3),
                       Text(
                         'Задайте вопрос по производству',
-                        style: TextStyle(
-                          color: _muted,
-                          fontSize: 11,
-                        ),
+                        style: TextStyle(color: _muted, fontSize: 11),
                       ),
                     ],
                   ),
@@ -415,16 +377,13 @@ class _AiScreenState extends State<AiScreen> {
                       BackendDocumentView(document: data),
                 ),
 
-                if (reply != null &&
-                    submittedMessage != null) ...[
+                if (reply != null && submittedMessage != null) ...[
                   const SizedBox(height: 16),
 
                   Align(
                     alignment: Alignment.centerRight,
                     child: Container(
-                      constraints: const BoxConstraints(
-                        maxWidth: 420,
-                      ),
+                      constraints: const BoxConstraints(maxWidth: 420),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 14,
                         vertical: 11,
@@ -500,19 +459,13 @@ class _AiScreenState extends State<AiScreen> {
                     minLines: 1,
                     maxLines: 5,
                     maxLength: 1000,
-                    style: const TextStyle(
-                      color: _ink,
-                      fontSize: 13,
-                    ),
+                    style: const TextStyle(color: _ink, fontSize: 13),
                     decoration: InputDecoration(
                       hintText: uiText(
                         context,
                         'Например: кто сейчас свободен?',
                       ),
-                      hintStyle: const TextStyle(
-                        color: _muted,
-                        fontSize: 12,
-                      ),
+                      hintStyle: const TextStyle(color: _muted, fontSize: 12),
                       prefixIcon: const Icon(
                         LucideIcons.messageCircle,
                         size: 19,
@@ -520,20 +473,17 @@ class _AiScreenState extends State<AiScreen> {
                       ),
                       filled: true,
                       fillColor: _background,
-                      contentPadding:
-                          const EdgeInsets.symmetric(
+                      contentPadding: const EdgeInsets.symmetric(
                         horizontal: 14,
                         vertical: 14,
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide:
-                            const BorderSide(color: _line),
+                        borderSide: const BorderSide(color: _line),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide:
-                            const BorderSide(color: _blue),
+                        borderSide: const BorderSide(color: _blue),
                       ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -554,9 +504,7 @@ class _AiScreenState extends State<AiScreen> {
 
                   if (sendError != null)
                     Padding(
-                      padding: const EdgeInsets.only(
-                        bottom: 12,
-                      ),
+                      padding: const EdgeInsets.only(bottom: 12),
                       child: Row(
                         children: [
                           const Icon(
@@ -567,10 +515,7 @@ class _AiScreenState extends State<AiScreen> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              backendError(
-                                context,
-                                sendError!,
-                              ),
+                              backendError(context, sendError!),
                               style: const TextStyle(
                                 color: Color(0xFFDC2626),
                                 fontSize: 12,
@@ -589,9 +534,7 @@ class _AiScreenState extends State<AiScreen> {
                         backgroundColor: _blue,
                         foregroundColor: Colors.white,
                         minimumSize: const Size(0, 46),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 18,
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 18),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -605,23 +548,14 @@ class _AiScreenState extends State<AiScreen> {
                                 color: Colors.white,
                               ),
                             )
-                          : const Icon(
-                              LucideIcons.send,
-                              size: 18,
-                            ),
+                          : const Icon(LucideIcons.send, size: 18),
                       label: Text(
                         backendText(
                           context,
-                          sendError == null
-                              ? 'Отправить'
-                              : 'Повторить',
-                          sendError == null
-                              ? 'Жіберу'
-                              : 'Қайталау',
+                          sendError == null ? 'Отправить' : 'Повторить',
+                          sendError == null ? 'Жіберу' : 'Қайталау',
                         ),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                     ),
                   ),
@@ -634,10 +568,7 @@ class _AiScreenState extends State<AiScreen> {
     );
   }
 
-  Widget _sectionHeading(
-    String title,
-    IconData icon,
-  ) {
+  Widget _sectionHeading(String title, IconData icon) {
     return Row(
       children: [
         Icon(icon, size: 19, color: _blue),
@@ -656,10 +587,7 @@ class _AiScreenState extends State<AiScreen> {
     );
   }
 
-  Widget _smallHeading(
-    String title,
-    IconData icon,
-  ) {
+  Widget _smallHeading(String title, IconData icon) {
     return Row(
       children: [
         Container(
@@ -669,11 +597,7 @@ class _AiScreenState extends State<AiScreen> {
             color: _lightBlue,
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(
-            icon,
-            color: _blue,
-            size: 18,
-          ),
+          child: Icon(icon, color: _blue, size: 18),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -692,17 +616,6 @@ class _AiScreenState extends State<AiScreen> {
 
   Widget _surface({
     required Widget child,
-    EdgeInsetsGeometry padding = const EdgeInsets.all(16),
-  }) {
-    return Container(
-      width: double.infinity,
-      padding: padding,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _line),
-      ),
-      child: child,
-    );
-  }
+    EdgeInsetsGeometry padding = const EdgeInsets.all(14),
+  }) => MasterSurface(padding: padding, child: child);
 }

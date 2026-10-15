@@ -1,3 +1,4 @@
+import '../../master/widgets/master_ui.dart';
 import 'package:flutter/material.dart';
 import '../../../core/api/api_services.dart';
 import '../../orders/data/references_api.dart';
@@ -10,7 +11,7 @@ class BackendEmployeeCard extends StatelessWidget {
   const BackendEmployeeCard({super.key, required this.executor});
   final ExecutorReference executor;
   @override
-  Widget build(BuildContext context) => Panel(
+  Widget build(BuildContext context) => MasterSurface(
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -90,10 +91,12 @@ class _TeamScreenState extends State<TeamScreen> {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      const PageHeading(
-        'Команда',
+      const MasterIntro(
+        title: 'Команда',
+        icon: Icons.groups_outlined,
         subtitle: 'Загрузка исполнителей, специальности и доступность',
       ),
+      const SizedBox(height: 12),
       TextField(
         onChanged: (text) => setState(() => search = text),
         decoration: InputDecoration(
@@ -202,7 +205,7 @@ class BackendBrigadeMembersScreen extends StatelessWidget {
   final int brigadeId;
   final String title;
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => MasterScaffold(
     appBar: AppBar(title: Text(uiText(context, title))),
     body: BackendRefreshView(
       padding: const EdgeInsets.all(24),

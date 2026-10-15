@@ -1,3 +1,4 @@
+import '../widgets/master_ui.dart';
 import 'package:flutter/material.dart';
 import '../../../core/api/api_services.dart';
 import '../../../core/api/backend_document.dart';
@@ -10,7 +11,7 @@ class EquipmentFailureForecastScreen extends StatelessWidget {
   final ApiServices api;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => MasterScaffold(
     appBar: AppBar(
       title: Text(
         backendText(
@@ -24,12 +25,19 @@ class EquipmentFailureForecastScreen extends StatelessWidget {
       surfaceTintColor: Colors.transparent,
     ),
     body: BackendRefreshView(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       child: BackendSection<BackendDocument>(
         load: () => api.analytics.getFailureForecast(),
         changes: api.realtime.changes,
-        builder: (context, data) =>
-            DashboardInsights(document: data, forecast: true),
+        builder: (context, data) => MasterSection(
+          title: backendText(
+            context,
+            'Прогноз отказов · 30 дней',
+            'Ақаулар болжамы · 30 күн',
+          ),
+          icon: Icons.query_stats,
+          child: DashboardInsights(document: data, forecast: true),
+        ),
       ),
     ),
   );

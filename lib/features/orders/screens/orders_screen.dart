@@ -777,7 +777,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       onDragUpdate: (details) =>
                           _dragPosition = details.globalPosition,
                       onDragEnd: _endDrag,
-                      overdue: column.$2 == 'overdue',
                     ),
                 ],
               ),
@@ -1142,7 +1141,6 @@ class _ApiKanbanColumn extends StatefulWidget {
     required this.onDragStarted,
     required this.onDragUpdate,
     required this.onDragEnd,
-    this.overdue = false,
   });
   final String columnId;
   final String title;
@@ -1155,7 +1153,6 @@ class _ApiKanbanColumn extends StatefulWidget {
   final VoidCallback onDragStarted;
   final ValueChanged<DragUpdateDetails> onDragUpdate;
   final ValueChanged<DraggableDetails> onDragEnd;
-  final bool overdue;
 
   @override
   State<_ApiKanbanColumn> createState() => _ApiKanbanColumnState();
@@ -1163,6 +1160,15 @@ class _ApiKanbanColumn extends StatefulWidget {
 
 class _ApiKanbanColumnState extends State<_ApiKanbanColumn> {
   final _scrollController = ScrollController();
+
+  Color get _headerColor => switch (widget.columnId) {
+    'accepted' => const Color(0xFF7C3AED),
+    'inProgress' => const Color(0xFFF59E0B),
+    'queued' => const Color(0xFF64748B),
+    'completed' => const Color(0xFF15803D),
+    'overdue' => const Color(0xFFDC2626),
+    _ => const Color(0xFF2563EB),
+  };
 
   @override
   void dispose() {
@@ -1177,56 +1183,60 @@ class _ApiKanbanColumnState extends State<_ApiKanbanColumn> {
     builder: (context, candidates, rejected) => Container(
       width: 280,
       margin: const EdgeInsets.only(right: 12),
-      padding: const EdgeInsets.all(14),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: candidates.isEmpty
-            ? const Color(0xFFEAF2FE)
-            : const Color(0xFFD5E6FF),
+            ? MasterColors.background
+            : _headerColor.withValues(alpha: .08),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: candidates.isEmpty ? border : const Color(0xFF01408B),
+          color: candidates.isEmpty ? border : _headerColor,
           width: candidates.isEmpty ? 1 : 2,
         ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(
+          Container(
             key: ValueKey('kanban-header-${widget.columnId}'),
-            height: 40,
+            height: 52,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            color: _headerColor,
             child: Row(
               children: [
-                Container(
-                  width: 9,
-                  height: 9,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: widget.overdue
-                        ? Colors.red
-                        : const Color(0xFF01408B),
-                  ),
-                ),
-                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     uiText(context, widget.title),
                     style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      color: ink,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
                     ),
                   ),
                 ),
-                Text(
-                  '${widget.orders.length}',
-                  style: const TextStyle(
-                    color: muted,
-                    fontWeight: FontWeight.w700,
+                const SizedBox(width: 12),
+                Container(
+                  constraints: const BoxConstraints(minWidth: 28),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: .2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '${widget.orders.length}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 8),
           Expanded(
             child: ScrollConfiguration(
               behavior: ScrollConfiguration.of(
@@ -1236,7 +1246,7 @@ class _ApiKanbanColumnState extends State<_ApiKanbanColumn> {
                 key: PageStorageKey('kanban-orders-${widget.columnId}'),
                 controller: _scrollController,
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.only(bottom: 88),
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
                 itemCount: widget.orders.isEmpty ? 1 : widget.orders.length,
                 itemBuilder: (context, index) => widget.orders.isEmpty
                     ? Padding(

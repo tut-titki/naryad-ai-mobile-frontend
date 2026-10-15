@@ -130,6 +130,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Object? _error;
   Locale? _locale;
 
+  List<List<NotificationApiModel>> get _notificationGroups {
+    final groups = <String, List<NotificationApiModel>>{};
+    for (final item in _items) {
+      final key = item.isOverdue && item.workOrderId != null
+          ? 'overdue:${item.userId}:${item.workOrderId}:${item.type}'
+          : 'single:${item.userId}:${item.id}';
+      groups.putIfAbsent(key, () => []).add(item);
+    }
+    return groups.values.toList();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -294,6 +305,51 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       'WEEKLY_AI_SUMMARY' => Icons.auto_awesome_outlined,
       _ => LucideIcons.bell,
     };
+  }
+
+  Widget _notificationGroup(List<NotificationApiModel> items) {
+    if (items.length == 1) return _tile(items.first);
+    final latest = items.first;
+    final unread = items
+        .where((item) => !item.isRead && !_optimisticRead.contains(item.id))
+        .length;
+
+    final latestDate = DateFormat(
+      'dd.MM.yyyy HH:mm',
+    ).format(enterpriseTime(latest.createdAt));
+    return Padding(
+      padding: EdgeInsets.only(bottom: 8),
+      child: Card(
+        margin: EdgeInsets.zero,
+        color: Colors.white,
+        clipBehavior: Clip.antiAlias,
+        child: ExpansionTile(
+          key: PageStorageKey<String>(
+            'notification-group:'
+            '${latest.userId}:${latest.workOrderId}:${latest.type}',
+          ),
+          leading: Icon(_icon(latest), color: Color(0xFFDC2626)),
+          title: Text(
+            latest.title,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: unread > 0 ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+          subtitle: Text(
+            backendText(
+              context,
+              'В списке: ${items.length} · Непрочитанных: $unread\n'
+                  'Последнее: $latestDate',
+              'Тізімде: ${items.length} · Оқылмаған: $unread\n'
+                  'Соңғысы: $latestDate',
+            ),
+          ),
+          childrenPadding: EdgeInsets.fromLTRB(8, 0, 8, 8),
+          children: [for (final item in items) _tile(item)],
+        ),
+      ),
+    );
   }
 
   Widget _tile(NotificationApiModel item) {
@@ -472,7 +528,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ),
         if (!_loading && _error == null && _items.isEmpty)
           Panel(child: Text(uiText(context, 'Новых уведомлений нет'))),
-        for (final item in _items) _tile(item),
+        for (final group in _notificationGroups) _notificationGroup(group),
       ],
     );
     if (!widget.standalone) return content;

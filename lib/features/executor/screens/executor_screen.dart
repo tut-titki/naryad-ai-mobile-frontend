@@ -418,7 +418,7 @@ class _OrderTile extends StatelessWidget {
       if (minutes > 0) '$minutes мин',
     ];
     final duration = parts.join(' ');
-    return kk ? 'Кешігу: $duration' : ' $duration';
+    return kk ? '$duration' : ' $duration';
   }
 
   @override

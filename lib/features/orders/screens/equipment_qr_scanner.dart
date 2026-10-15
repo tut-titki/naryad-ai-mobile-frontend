@@ -86,7 +86,7 @@ class _EquipmentQrScannerState extends State<EquipmentQrScanner> {
               },
             ),
           ),
-          Padding(
+          /*Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
@@ -128,7 +128,7 @@ class _EquipmentQrScannerState extends State<EquipmentQrScanner> {
                 ),
               ],
             ),
-          ),
+          ),*/
         ],
       ),
     ),

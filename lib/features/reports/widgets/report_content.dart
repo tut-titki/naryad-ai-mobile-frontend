@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/api/backend_document.dart';
 import '../../../core/utils/enterprise_time.dart';
+import '../../../l10n/ui_localization.dart';
 import '../../../shared/widgets/backend_section.dart';
 import '../../master/widgets/master_ui.dart';
 
@@ -109,7 +110,7 @@ class ReportContent extends StatelessWidget {
   String _name(BuildContext context, Object? value) {
     final name = value is Map ? value['name'] ?? value['fullName'] : value;
     return hasData(name)
-        ? '$name'
+        ? uiText(context, '$name')
         : backendText(context, 'Нет данных', 'Деректер жоқ');
   }
 
@@ -369,7 +370,9 @@ class ReportContent extends StatelessWidget {
                 _entry(
                   context,
                   '${employee['fullName'] ?? '—'}',
-                  employee['specialty']?.toString(),
+                  employee['specialty'] == null
+                      ? null
+                      : uiText(context, '${employee['specialty']}'),
                   Column(
                     children: [
                       _fields(context, employee, [
@@ -428,7 +431,8 @@ class ReportContent extends StatelessWidget {
             children: [
               Text(
                 hasData(item['quantity'])
-                    ? '${item['quantity']} ${item['unit'] ?? ''}'.trim()
+                    ? '${item['quantity']} ${uiText(context, '${item['unit'] ?? ''}')}'
+                          .trim()
                     : backendText(
                         context,
                         'Нет данных о расходе',

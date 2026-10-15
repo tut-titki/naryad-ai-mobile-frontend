@@ -1093,8 +1093,8 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
           backgroundColor: MasterColors.background,
           appBar: AppBar(
             title: Text(
-              'Создание наряда',
-              style: TextStyle(color: Colors.white),
+              uiText(context, 'Создание наряда'),
+              style: const TextStyle(color: Colors.white),
             ),
           ),
           bottomNavigationBar: _buildBottomBar(),
@@ -1525,7 +1525,8 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
                           [
                             if (item.specialty != null)
                               uiText(context, item.specialty!),
-                            if (item.grade != null) '${item.grade} разряд',
+                            if (item.grade != null)
+                              uiText(context, '${item.grade} разряд'),
                           ].join(' · '),
                           style: const TextStyle(fontSize: 12, color: muted),
                         ),
@@ -1868,7 +1869,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
                       Padding(
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                         child: Text(
-                          title,
+                          uiText(sheetContext, title),
                           style: const TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w700,
@@ -2117,7 +2118,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
               for (final fault in faultCodes)
                 DropdownMenuItem(
                   value: fault.id,
-                  child: Text('${fault.code} · ${fault.name}'),
+                  child: Text('${fault.code} · ${uiText(context, fault.name)}'),
                 ),
             ],
             onChanged: creating

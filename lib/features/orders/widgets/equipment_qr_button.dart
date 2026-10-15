@@ -6,6 +6,7 @@ import '../../../core/api/api_scope.dart';
 import '../../../core/api/api_services.dart';
 import '../../../core/services/photo_picker_service.dart';
 import '../../../shared/widgets/backend_section.dart';
+import '../../../l10n/ui_localization.dart';
 import '../../references/data/reference_storage.dart';
 import '../../auth/widgets/auth_scope.dart';
 import '../data/equipment_qr_api.dart';
@@ -167,12 +168,12 @@ class _EquipmentQrSheetState extends State<_EquipmentQrSheet> {
             const Icon(Icons.precision_manufacturing_outlined, size: 40),
             const SizedBox(height: 12),
             Text(
-              _equipment!.equipment.name,
+              uiText(context, _equipment!.equipment.name),
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
             Text(
-              '${backendText(context, 'Участок', 'Учаске')}: ${_equipment!.area.name}',
+              '${backendText(context, 'Участок', 'Учаске')}: ${uiText(context, _equipment!.area.name)}',
             ),
             if (_equipment!.equipment.inventoryNumber != null)
               Text(_equipment!.equipment.inventoryNumber!),

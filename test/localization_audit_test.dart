@@ -17,6 +17,35 @@ Widget host(Widget child) => MaterialApp(
 );
 
 void main() {
+  test('visible static Russian labels do not bypass localization', () {
+    final directLabels = RegExp(
+      r'''(?:(?:Text|SelectableText)\(\s*|(?:tooltip|labelText|hintText|helperText):\s*)(['"])((?:(?!\1).)*?)\1''',
+      dotAll: true,
+    );
+    final missing = <String>[];
+    for (final file in Directory(
+      'lib',
+    ).listSync(recursive: true).whereType<File>()) {
+      if (!file.path.endsWith('.dart') ||
+          file.path.contains(
+            '${Platform.pathSeparator}l10n${Platform.pathSeparator}',
+          )) {
+        continue;
+      }
+      final source = file.readAsStringSync();
+      for (final match in directLabels.allMatches(source)) {
+        final label = match[2]!;
+        if (RegExp('[А-Яа-яЁё]').hasMatch(label) &&
+            !{'НарядAI', 'Русский / Қазақша'}.contains(label)) {
+          final line =
+              '\n'.allMatches(source.substring(0, match.start)).length + 1;
+          missing.add('${file.path}:$line: $label');
+        }
+      }
+    }
+    expect(missing, isEmpty, reason: missing.join('\n'));
+  });
+
   for (final language in ['ru', 'kk']) {
     testWidgets('API errors use $language and preserve unknown server text', (
       tester,
@@ -80,7 +109,7 @@ void main() {
         if (entry.key == entry.value) entry.key,
     };
     final calls = RegExp(
-      r'''(?:uiText\(\s*\w+,\s*|(?:PageHeading|SectionHeading|StatusTag)\(\s*)(['"])((?:(?!\1).)*?)\1''',
+      r'''(?:(?:uiText|_sectionTitle)\(\s*\w+,\s*|(?:PageHeading|SectionHeading|StatusTag|_sectionHeading|_smallHeading)\(\s*)(['"])((?:(?!\1).)*?)\1''',
       dotAll: true,
     );
     var checked = 0;

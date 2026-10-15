@@ -568,7 +568,12 @@ class ReportContent extends StatelessWidget {
         })) {
       return const SizedBox.shrink();
     }
-    return MasterSurface(child: _content(context));
+    return MasterSurface(
+      child: Material(
+        type: MaterialType.transparency,
+        child: _content(context),
+      ),
+    );
   }
 
   Widget _content(BuildContext context) {

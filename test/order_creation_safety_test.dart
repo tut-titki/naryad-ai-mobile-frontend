@@ -316,7 +316,7 @@ void main() {
       );
       await tester.pump();
       final failure = tester.takeException();
-      expect(find.byType(DatePickerDialog), findsOneWidget);
+      expect(find.byType(CalendarDatePicker), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
       await tester.pumpAndSettle();
       expect(failure, isNull);

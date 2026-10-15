@@ -1,3 +1,4 @@
+import 'package:mineral/shared/widgets/app_bottom_sheet.dart';
 import '../../master/widgets/master_ui.dart';
 import 'dart:async';
 import 'package:uuid/uuid.dart';
@@ -199,10 +200,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         .firstOrNull;
     final selectedId =
         suggested?.id ??
-        await showDialog<int>(
+        await showAppBottomSheet<int>(
           context: context,
           builder: (dialogContext) {
-            return AlertDialog(
+            return AppSheetContent(
               title: Text(uiText(context, 'Переназначить наряд')),
               content: SizedBox(
                 width: 520,
@@ -348,7 +349,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       return;
     }
 
-    final result = await showDialog<_CloseResult>(
+    final result = await showAppBottomSheet<_CloseResult>(
       context: context,
       builder: (dialogContext) {
         return _CloseOrderDialog(
@@ -387,7 +388,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       return;
     }
 
-    final result = await showDialog<_EditOrderResult>(
+    final result = await showAppBottomSheet<_EditOrderResult>(
       context: context,
       builder: (dialogContext) {
         return _EditOrderDialog(order: current);
@@ -419,10 +420,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     required String message,
     required String confirmText,
   }) async {
-    final result = await showDialog<bool>(
+    final result = await showAppBottomSheet<bool>(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
+        return AppSheetContent(
           title: Text(uiText(context, title)),
           content: Text(uiText(context, message)),
           actions: [
@@ -456,10 +457,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     final controller = TextEditingController();
     final formKey = GlobalKey<FormState>();
 
-    final route = DialogRoute<String>(
+    final route = appBottomSheetRoute<String>(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
+        return AppSheetContent(
           title: Text(uiText(context, title)),
           content: SizedBox(
             width: 520,
@@ -534,18 +535,23 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               : '${uiText(context, 'Наряд')} №${order!.number}',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white),
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+          ),
         ),
         actions: [
           IconButton(
             tooltip: uiText(context, 'Отчёт по наряду'),
             icon: const Icon(Icons.summarize_outlined, color: Colors.white),
-            onPressed: () => showDialog<void>(
+            onPressed: () => showAppBottomSheet<void>(
               context: context,
-              builder: (dialogContext) => AlertDialog(
+              builder: (dialogContext) => AppSheetContent(
                 title: Text(uiText(dialogContext, 'Отчёт по наряду')),
                 content: SizedBox(
                   width: 640,
+                  height: MediaQuery.sizeOf(dialogContext).height * .65,
                   child: BackendRefreshView(
                     child: BackendSection<BackendDocument>(
                       load: () =>
@@ -1438,7 +1444,7 @@ class _CloseOrderDialogState extends State<_CloseOrderDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return AppSheetContent(
       title: Text(uiText(context, 'Принять работу')),
       content: SizedBox(
         width: 520,
@@ -1603,19 +1609,22 @@ class _EditOrderDialogState extends State<_EditOrderDialog> {
   }
 
   Future<void> _selectDeadline() async {
-    final now = DateTime.now();
+    final instant = DateTime.now();
+    final now = enterpriseTime(instant);
 
-    final current = deadline ?? now.add(const Duration(hours: 2));
+    final current = enterpriseTime(
+      deadline ?? instant.add(const Duration(hours: 2)),
+    );
     final firstDate = DateUtils.dateOnly(now.subtract(const Duration(days: 1)));
     final lastDate = DateUtils.dateOnly(now.add(const Duration(days: 365 * 2)));
-    final savedDate = DateUtils.dateOnly(current.toLocal());
+    final savedDate = DateUtils.dateOnly(current);
     final initialDate = savedDate.isBefore(firstDate)
         ? firstDate
         : savedDate.isAfter(lastDate)
         ? lastDate
         : savedDate;
 
-    final date = await showDatePicker(
+    final date = await showAppDatePicker(
       context: context,
       initialDate: initialDate,
       firstDate: firstDate,
@@ -1626,7 +1635,7 @@ class _EditOrderDialogState extends State<_EditOrderDialog> {
       return;
     }
 
-    final time = await showTimePicker(
+    final time = await showAppTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(current),
     );
@@ -1636,19 +1645,13 @@ class _EditOrderDialogState extends State<_EditOrderDialog> {
     }
 
     setState(() {
-      deadline = DateTime(
-        date.year,
-        date.month,
-        date.day,
-        time.hour,
-        time.minute,
-      );
+      deadline = enterpriseWallTimeToUtc(date, time.hour, time.minute);
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return AppSheetContent(
       title: Text(uiText(context, 'Изменить наряд')),
       content: SizedBox(
         width: 600,
@@ -1917,11 +1920,11 @@ class _PhotoGrid extends StatelessWidget {
                 color: background,
                 child: InkWell(
                   onTap: () {
-                    showDialog<void>(
+                    showAppBottomSheet<void>(
                       context: context,
                       builder: (dialogContext) {
-                        return Dialog(
-                          backgroundColor: Colors.transparent,
+                        return SizedBox(
+                          height: MediaQuery.sizeOf(dialogContext).height * .8,
                           child: Stack(
                             children: [
                               InteractiveViewer(

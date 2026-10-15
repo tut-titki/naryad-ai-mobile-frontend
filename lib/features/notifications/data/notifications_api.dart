@@ -37,6 +37,8 @@ class NotificationApiModel {
   );
   bool get isOverdue =>
       type.startsWith('OVERDUE') || type.startsWith('LONG_OVERDUE');
+
+  String get overdueCategory => type.replaceFirst(RegExp(r'_\d+$'), '');
 }
 
 class NotificationsApi {

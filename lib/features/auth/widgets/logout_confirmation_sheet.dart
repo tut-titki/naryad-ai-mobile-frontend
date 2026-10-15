@@ -1,16 +1,11 @@
+import 'package:mineral/shared/widgets/app_bottom_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:mineral/core/theme/app_theme.dart';
 import 'package:mineral/l10n/app_localizations.dart';
 
 Future<bool> showLogoutConfirmation(BuildContext context) async =>
-    await showModalBottomSheet<bool>(
+    await showAppBottomSheet<bool>(
       context: context,
-      showDragHandle: true,
-      useSafeArea: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
       builder: (sheetContext) {
         final s = AppLocalizations.of(sheetContext);
         return SafeArea(

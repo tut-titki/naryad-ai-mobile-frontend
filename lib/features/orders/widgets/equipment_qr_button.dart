@@ -1,3 +1,4 @@
+import 'package:mineral/shared/widgets/app_bottom_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:file_saver/file_saver.dart';
 import '../../../core/api/api_client.dart';
@@ -55,10 +56,9 @@ Future<void> showEquipmentQrSheet(
   ReferenceStorage? draftStorage,
 }) async {
   if (AuthScope.maybeOf(context)?.user?.role != 'MASTER') return;
-  final equipment = await showModalBottomSheet<QrEquipment>(
+  final equipment = await showAppBottomSheet<QrEquipment>(
     context: context,
     isScrollControlled: true,
-    showDragHandle: true,
     builder: (_) => _EquipmentQrSheet(api: api, value: value),
   );
   if (!context.mounted || equipment == null) return;

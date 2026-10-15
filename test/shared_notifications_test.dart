@@ -39,6 +39,41 @@ class NotificationSource extends ChangeNotifier {
 }
 
 void main() {
+  testWidgets(
+    'numbered overdue repeats group without merging escalation or orders',
+    (tester) async {
+      final reads = <int>[];
+      await tester.pumpWidget(
+        host(
+          NotificationsScreen(
+            standalone: true,
+            load: () async => [
+              notice(1, type: 'OVERDUE_318', orderId: 1551),
+              notice(2, type: 'OVERDUE_319', orderId: 1551),
+              notice(3, type: 'LONG_OVERDUE_320', orderId: 1551),
+              notice(4, type: 'OVERDUE_321', orderId: 1552),
+            ],
+            markRead: (id) async => reads.add(id),
+            onOrder: (_) {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(ExpansionTile), findsOneWidget);
+      expect(find.text('Наряд 1'), findsNothing);
+      expect(find.text('Наряд 3'), findsOneWidget);
+      expect(find.text('Наряд 4'), findsOneWidget);
+      await tester.tap(find.byType(ExpansionTile));
+      await tester.pumpAndSettle();
+      expect(find.text('Наряд 1'), findsOneWidget);
+      expect(find.text('Наряд 2'), findsNWidgets(2));
+      await tester.tap(find.text('Барлығын оқу'));
+      await tester.pumpAndSettle();
+      expect(reads, [4, 3, 2, 1]);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   test(
     'master API rejects an unconfirmed read instead of reporting success',
     () async {

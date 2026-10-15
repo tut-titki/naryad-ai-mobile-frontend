@@ -1,3 +1,4 @@
+import 'package:mineral/shared/widgets/app_bottom_sheet.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:mineral/l10n/app_locale.dart';
@@ -13,13 +14,8 @@ class ProfileLanguageTile extends StatelessWidget {
 
   Future<void> _chooseLanguage(BuildContext context) async {
     final selected = Localizations.localeOf(context).languageCode;
-    final locale = await showModalBottomSheet<Locale>(
+    final locale = await showAppBottomSheet<Locale>(
       context: context,
-      backgroundColor: const Color(0xFFF5F7FB),
-      showDragHandle: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
       builder: (context) => SafeArea(
         top: false,
         child: Padding(

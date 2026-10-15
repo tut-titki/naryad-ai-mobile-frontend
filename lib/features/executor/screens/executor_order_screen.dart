@@ -1,3 +1,4 @@
+import 'package:mineral/shared/widgets/app_bottom_sheet.dart';
 import 'package:mineral/features/auth/data/auth_session.dart';
 import 'package:mineral/l10n/ui_localization.dart';
 import 'package:flutter/material.dart';
@@ -146,11 +147,9 @@ class _ExecutorOrderScreenState extends State<ExecutorOrderScreen> {
         // A storage error must not block entering a new reason.
       }
       if (!context.mounted) return;
-      await showModalBottomSheet<void>(
+      await showAppBottomSheet<void>(
         context: context,
         isScrollControlled: true,
-        useSafeArea: true,
-        showDragHandle: true,
         enableDrag: false,
         builder: (sheetContext) => StatefulBuilder(
           builder: (sheetContext, updateSheet) => PopScope(

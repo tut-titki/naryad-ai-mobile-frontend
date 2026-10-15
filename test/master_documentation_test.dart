@@ -1,3 +1,4 @@
+import 'package:mineral/shared/widgets/app_bottom_sheet.dart';
 import 'package:mineral/features/references/data/reference_storage_stub.dart';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -243,7 +244,7 @@ void main() {
       expect(find.textContaining('Suggested Executor.'), findsOneWidget);
       await tester.tap(
         find.descendant(
-          of: find.byType(AlertDialog),
+          of: find.byType(AppSheetContent),
           matching: find.text('Переназначить'),
         ),
       );

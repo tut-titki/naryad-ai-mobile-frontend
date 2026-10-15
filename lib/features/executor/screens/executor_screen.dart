@@ -418,7 +418,7 @@ class _OrderTile extends StatelessWidget {
       if (minutes > 0) '$minutes мин',
     ];
     final duration = parts.join(' ');
-    return kk ? '$duration' : ' $duration';
+    return kk ? 'Мерзімі $duration өтті' : 'Просрочен на $duration';
   }
 
   @override
@@ -597,9 +597,7 @@ class _OrderTile extends StatelessWidget {
                       const SizedBox(width: 7),
                       Expanded(
                         child: Text(
-                          strings(
-                            context,
-                          ).overdueByMinutes(_overdueLabel(context)),
+                          _overdueLabel(context),
                           style: TextStyle(
                             fontSize: 12,
                             color: accent,

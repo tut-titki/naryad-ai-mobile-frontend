@@ -69,8 +69,8 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        expect(find.textContaining('19:40 16,10,2026'), findsOneWidget);
-        expect(find.textContaining('23:59 17,10,2026'), findsOneWidget);
+        expect(find.textContaining('19:40 16.10.2026'), findsOneWidget);
+        expect(find.textContaining('23:59 17.10.2026'), findsOneWidget);
         final load = find.text(
           language == 'ru'
               ? 'Загрузка сотрудников'
@@ -87,7 +87,7 @@ void main() {
         await tester.tap(orders);
         await tester.pumpAndSettle();
         expect(find.textContaining('N-773'), findsOneWidget);
-        expect(find.textContaining('19:40 16,10,2026'), findsNWidgets(2));
+        expect(find.textContaining('19:40 16.10.2026'), findsNWidgets(2));
         final equipment = find.text(
           language == 'ru' ? 'Оборудование' : 'Жабдық',
         );

@@ -135,7 +135,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final groups = <String, List<NotificationApiModel>>{};
     for (final item in _items) {
       final key = item.isOverdue && item.workOrderId != null
-          ? 'overdue:${item.userId}:${item.workOrderId}:${item.type}'
+          ? 'overdue:${item.userId}:${item.workOrderId}:${item.overdueCategory}'
           : 'single:${item.userId}:${item.id}';
       groups.putIfAbsent(key, () => []).add(item);
     }
@@ -327,7 +327,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         child: ExpansionTile(
           key: PageStorageKey<String>(
             'notification-group:'
-            '${latest.userId}:${latest.workOrderId}:${latest.type}',
+            '${latest.userId}:${latest.workOrderId}:${latest.overdueCategory}',
           ),
           leading: Icon(_icon(latest), color: Color(0xFFDC2626)),
           title: Text(

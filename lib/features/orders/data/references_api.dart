@@ -212,6 +212,37 @@ class ExecutorReference {
     return isOnShift && employeeStatus != EmployeeStatus.offShift;
   }
 
+  EmployeeStatus get assignmentStatus {
+    if (!isOnShift || employeeStatus == EmployeeStatus.offShift) {
+      return EmployeeStatus.offShift;
+    }
+    return switch (currentOrder?.status.toUpperCase()) {
+      'IN_PROGRESS' ||
+      'PAUSED' ||
+      'REWORK' ||
+      'COMPLETED' ||
+      'AI_REVIEW' => EmployeeStatus.busy,
+      'ISSUED' || 'QUEUED' || 'ACCEPTED' => EmployeeStatus.queued,
+      _ => employeeStatus,
+    };
+  }
+
+  String get assignmentStatusLabel {
+    if (assignmentStatus == EmployeeStatus.offShift) {
+      return EmployeeStatus.offShift.label;
+    }
+    return switch (currentOrder?.status.toUpperCase()) {
+      'IN_PROGRESS' => 'В работе',
+      'PAUSED' => 'Приостановлен',
+      'ISSUED' => 'Выдан',
+      'QUEUED' => 'В очереди',
+      'ACCEPTED' => 'Принят',
+      'REWORK' => 'На доработке',
+      'COMPLETED' || 'AI_REVIEW' => 'На проверке',
+      _ => assignmentStatus.label,
+    };
+  }
+
   String get qualification {
     final parts = <String>[];
 

@@ -1,3 +1,4 @@
+import 'package:mineral/shared/widgets/app_bottom_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:mineral/l10n/ui_localization.dart';
 
@@ -20,11 +21,9 @@ class ExecutorMaterialTile extends StatelessWidget {
   Future<void> _edit(BuildContext context) async {
     final controller = TextEditingController(text: quantity.toString());
     final form = GlobalKey<FormState>();
-    final result = await showModalBottomSheet<double>(
+    final result = await showAppBottomSheet<double>(
       context: context,
       isScrollControlled: true,
-      showDragHandle: true,
-      useSafeArea: true,
       builder: (context) => SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
           24,
@@ -91,10 +90,8 @@ class ExecutorMaterialTile extends StatelessWidget {
   }
 
   Future<void> _remove(BuildContext context) async {
-    final confirmed = await showModalBottomSheet<bool>(
+    final confirmed = await showAppBottomSheet<bool>(
       context: context,
-      showDragHandle: true,
-      useSafeArea: true,
       builder: (context) => Padding(
         padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
         child: Column(

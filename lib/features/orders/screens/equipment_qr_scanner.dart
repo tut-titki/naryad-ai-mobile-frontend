@@ -11,6 +11,7 @@ class EquipmentQrScanner extends StatefulWidget {
 
 class _EquipmentQrScannerState extends State<EquipmentQrScanner> {
   bool _detected = false;
+  bool _emptyInput = false;
   final _input = TextEditingController();
   @override
   void dispose() {
@@ -19,7 +20,11 @@ class _EquipmentQrScannerState extends State<EquipmentQrScanner> {
   }
 
   void _complete(String value) {
-    if (_detected || value.trim().isEmpty) return;
+    if (_detected) return;
+    if (value.trim().isEmpty) {
+      setState(() => _emptyInput = true);
+      return;
+    }
     _detected = true;
     Navigator.pop(context, value.trim());
   }
@@ -88,14 +93,22 @@ class _EquipmentQrScannerState extends State<EquipmentQrScanner> {
                 Text(
                   backendText(
                     context,
-                    'Поместите любой QR в квадрат',
-                    'Кез келген QR кодын шаршыға орналастырыңыз',
+                    'Отсканируйте QR или введите текст из него ниже',
+                    'QR кодын сканерлеңіз немесе оның мәтінін төменге енгізіңіз',
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _input,
+                  onChanged: (_) => setState(() => _emptyInput = false),
                   decoration: InputDecoration(
+                    errorText: _emptyInput
+                        ? backendText(
+                            context,
+                            'Введите текст из QR',
+                            'QR мәтінін енгізіңіз',
+                          )
+                        : null,
                     labelText: backendText(
                       context,
                       'Текст или ссылка из QR',
@@ -106,7 +119,9 @@ class _EquipmentQrScannerState extends State<EquipmentQrScanner> {
                 ),
                 const SizedBox(height: 8),
                 FilledButton(
-                  onPressed: () => _complete(_input.text),
+                  onPressed: _input.text.trim().isEmpty
+                      ? null
+                      : () => _complete(_input.text),
                   child: Text(
                     backendText(context, 'Найти оборудование', 'Жабдықты табу'),
                   ),

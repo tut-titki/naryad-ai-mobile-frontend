@@ -1,3 +1,5 @@
+import 'package:mineral/shared/widgets/app_bottom_sheet.dart';
+import 'package:mineral/core/utils/enterprise_time.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -19,6 +21,70 @@ Widget host(Widget child) => MaterialApp(
 );
 
 void main() {
+  testWidgets('editing deadline keeps the displayed enterprise time', (
+    tester,
+  ) async {
+    final tomorrow = enterpriseTime(
+      DateTime.now(),
+    ).add(const Duration(days: 1));
+    final deadline = enterpriseWallTimeToUtc(tomorrow, 21, 14);
+    Map<String, dynamic>? sent;
+    final api = testApi(
+      handle: (request) async {
+        if (request.url.path == '/api/work-orders/773') {
+          if (request.method == 'PATCH') {
+            sent = jsonDecode(request.body) as Map<String, dynamic>;
+          }
+          return jsonResponse(
+            orderJson()..['deadline'] = deadline.toIso8601String(),
+          );
+        }
+        return null;
+      },
+    );
+    addTearDown(api.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('ru'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: OrderDetailScreen(api: api, orderId: 773),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Изменить'));
+    await tester.tap(find.text('Изменить'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithIcon(OutlinedButton, Icons.event_outlined));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<CalendarDatePicker>(find.byType(CalendarDatePicker))
+          .initialDate!
+          .day,
+      tomorrow.day,
+    );
+    await tester.tap(find.text('ОК'));
+    await tester.pumpAndSettle();
+    final timeFields = find.byType(DropdownButtonFormField<int>);
+    expect(
+      tester
+          .widget<DropdownButtonFormField<int>>(timeFields.first)
+          .initialValue,
+      21,
+    );
+    expect(
+      tester.widget<DropdownButtonFormField<int>>(timeFields.last).initialValue,
+      14,
+    );
+    await tester.tap(find.text('ОК'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Сохранить'));
+    await tester.pumpAndSettle();
+    expect(DateTime.parse(sent!['deadline'] as String), deadline);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('master changes AI score and sends it with CLOSE', (
     tester,
   ) async {
@@ -54,7 +120,7 @@ void main() {
     await tester.ensureVisible(find.text('Принять и закрыть'));
     await tester.tap(find.text('Принять и закрыть'));
     await tester.pumpAndSettle();
-    final dialog = find.byType(AlertDialog);
+    final dialog = find.byType(AppSheetContent);
     expect(
       find.descendant(of: dialog, matching: find.byIcon(Icons.star)),
       findsNWidgets(3),

@@ -1,3 +1,5 @@
+import 'package:mineral/shared/widgets/app_bottom_sheet.dart';
+import 'package:mineral/core/utils/enterprise_time.dart';
 import '../../master/widgets/master_ui.dart';
 import 'dart:convert';
 import 'dart:async';
@@ -168,9 +170,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
   }
 
   String _executorStatusDetails(ExecutorReference item) {
-    final status = !item.isOnShift
-        ? EmployeeStatus.offShift.label
-        : item.employeeStatus.label;
+    final status = item.assignmentStatusLabel;
     return [
       uiText(context, status),
       if (item.currentOrder != null) '№${item.currentOrder!.number}',
@@ -298,9 +298,9 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
     setState(() => discardingDraft = true);
     try {
       final s = strings(context);
-      final confirmed = await showDialog<bool>(
+      final confirmed = await showAppBottomSheet<bool>(
         context: context,
-        builder: (dialogContext) => AlertDialog(
+        builder: (dialogContext) => AppSheetContent(
           title: Text(s.discardOrderDraftTitle),
           content: Text(s.discardOrderDraftMessage),
           actions: [
@@ -780,16 +780,16 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
   // MARK: Deadline
 
   Future<void> selectDeadline() async {
-    final now = DateTime.now();
+    final now = enterpriseTime(DateTime.now());
     final firstDate = DateUtils.dateOnly(now);
     final lastDate = DateTime(now.year, now.month, now.day + 365);
-    final savedDate = DateUtils.dateOnly(deadline.toLocal());
+    final savedDate = DateUtils.dateOnly(enterpriseTime(deadline));
     final initialDate = savedDate.isBefore(firstDate)
         ? firstDate
         : savedDate.isAfter(lastDate)
         ? lastDate
         : savedDate;
-    final date = await showDatePicker(
+    final date = await showAppDatePicker(
       context: context,
       initialDate: initialDate,
       firstDate: firstDate,
@@ -803,9 +803,9 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
       return;
     }
 
-    final time = await showTimePicker(
+    final time = await showAppTimePicker(
       context: context,
-      initialTime: TimeOfDay.fromDateTime(deadline),
+      initialTime: TimeOfDay.fromDateTime(enterpriseTime(deadline)),
       helpText: uiText(context, 'Время исполнения'),
       cancelText: uiText(context, 'Отмена'),
       confirmText: uiText(context, 'Выбрать'),
@@ -818,13 +818,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
     setState(() {
       customDeadline = true;
       useNormative = false;
-      deadline = DateTime(
-        date.year,
-        date.month,
-        date.day,
-        time.hour,
-        time.minute,
-      );
+      deadline = enterpriseWallTimeToUtc(date, time.hour, time.minute);
     });
   }
 
@@ -1097,7 +1091,12 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
         canPop: !creating && !discardingDraft,
         child: MasterScaffold(
           backgroundColor: MasterColors.background,
-          appBar: AppBar(title: Text('Создание наряда', style: TextStyle(color: Colors.white),)),
+          appBar: AppBar(
+            title: Text(
+              'Создание наряда',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
           bottomNavigationBar: _buildBottomBar(),
           body: _buildBody(),
         ),
@@ -1839,10 +1838,9 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
   }) async {
     String query = '';
 
-    return showModalBottomSheet<T>(
+    return showAppBottomSheet<T>(
       context: context,
       isScrollControlled: true,
-      showDragHandle: true,
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (sheetContext, update) {
@@ -1987,7 +1985,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen>
       leading: (item) => Icon(
         Icons.circle,
         size: 12,
-        color: employeeStatusColor(item.employeeStatus),
+        color: employeeStatusColor(item.assignmentStatus),
       ),
     );
     if (mounted && selected != null) {

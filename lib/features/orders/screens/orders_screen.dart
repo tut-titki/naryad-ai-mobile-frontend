@@ -1,3 +1,4 @@
+import 'package:mineral/shared/widgets/app_bottom_sheet.dart';
 import '../../master/widgets/master_ui.dart';
 import '../widgets/master_scope_filters.dart';
 
@@ -349,16 +350,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
     var tempScope = Map<String, int>.from(scope);
 
-    final apply = await showModalBottomSheet<bool>(
+    final apply = await showAppBottomSheet<bool>(
       context: context,
 
       isScrollControlled: true,
-
-      useSafeArea: true,
-
-      showDragHandle: true,
-
-      backgroundColor: Colors.white,
 
       builder: (sheetContext) {
         return StatefulBuilder(
@@ -864,11 +859,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
     );
     try {
       if (action == WorkOrderAction.complete) {
-        final completed = await showModalBottomSheet<bool>(
+        final completed = await showAppBottomSheet<bool>(
           context: context,
           isScrollControlled: true,
-          useSafeArea: true,
-          showDragHandle: true,
           isDismissible: false,
           enableDrag: false,
           builder: (_) => MasterCompletionSheet(
@@ -939,9 +932,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
   Future<String?> _requestReworkReason() async {
     final controller = TextEditingController();
     final form = GlobalKey<FormState>();
-    final route = DialogRoute<String>(
+    final route = appBottomSheetRoute<String>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AppSheetContent(
         title: Text(uiText(context, 'Отправить на доработку')),
         content: Form(
           key: form,

@@ -1,3 +1,4 @@
+import 'package:mineral/shared/widgets/app_bottom_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:mineral/l10n/ui_localization.dart';
 import 'package:mineral/shared/models/models.dart';
@@ -27,9 +28,8 @@ class PhotoAttachments extends StatelessWidget {
 
   Future<void> attachPhoto(BuildContext context) async {
     final s = strings(context);
-    final source = await showModalBottomSheet<_PhotoSource>(
+    final source = await showAppBottomSheet<_PhotoSource>(
       context: context,
-      showDragHandle: true,
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,

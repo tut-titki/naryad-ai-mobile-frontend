@@ -1,3 +1,4 @@
+import 'package:mineral/shared/widgets/app_bottom_sheet.dart';
 import '../../master/widgets/master_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:file_saver/file_saver.dart';
@@ -195,10 +196,9 @@ class ReportsScreenState extends State<ReportsScreen> {
     var draftGroup = groupBy;
     var draftScope = Map<String, int>.from(scope);
     var draftRange = selectedPeriod;
-    final applied = await showModalBottomSheet<bool>(
+    final applied = await showAppBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      showDragHandle: true,
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, updateSheet) => SafeArea(
           child: ConstrainedBox(
@@ -256,7 +256,7 @@ class ReportsScreenState extends State<ReportsScreen> {
                           : strings(sheetContext).selectPeriod,
                     ),
                     onPressed: () async {
-                      final range = await showDateRangePicker(
+                      final range = await showAppDateRangePicker(
                         context: sheetContext,
                         firstDate: DateTime(2000),
                         lastDate: today,
@@ -508,11 +508,9 @@ class ReportsScreenState extends State<ReportsScreen> {
         RatingReportView(
           entries: entries,
           brigades: report == 'brigade-ratings',
-          onDetails: (item, position) => showModalBottomSheet<void>(
+          onDetails: (item, position) => showAppBottomSheet<void>(
             context: context,
             isScrollControlled: true,
-            showDragHandle: true,
-            backgroundColor: _background,
             builder: (sheetContext) => SafeArea(
               top: false,
               child: SingleChildScrollView(

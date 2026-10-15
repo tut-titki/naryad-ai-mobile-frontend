@@ -1,3 +1,4 @@
+import 'package:mineral/shared/widgets/app_bottom_sheet.dart';
 import 'package:mineral/core/services/photo_upload_rules.dart';
 import 'package:mineral/core/api/api_scope.dart';
 import 'package:mineral/features/auth/data/auth_session.dart';
@@ -367,12 +368,9 @@ class _CompletionScreenState extends State<CompletionScreen> {
         ),
       ),
     );
-    await showModalBottomSheet<void>(
+    await showAppBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      backgroundColor: const Color(0xFFF4F7FB),
       builder: (sheetContext) => Theme(
         data: materialTheme,
         child: StatefulBuilder(
@@ -427,11 +425,8 @@ class _CompletionScreenState extends State<CompletionScreen> {
                               ),
                               onPressed: () async {
                                 final selected =
-                                    await showModalBottomSheet<String>(
+                                    await showAppBottomSheet<String>(
                                       context: context,
-                                      useSafeArea: true,
-                                      showDragHandle: true,
-                                      backgroundColor: const Color(0xFFF4F7FB),
                                       isScrollControlled: true,
                                       builder: (pickerContext) => ConstrainedBox(
                                         constraints: BoxConstraints(

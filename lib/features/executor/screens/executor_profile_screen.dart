@@ -1,3 +1,4 @@
+import 'package:mineral/shared/widgets/app_bottom_sheet.dart';
 import '../../../shared/widgets/employee_profile_layout.dart';
 import '../models/executor_rating_period.dart';
 import 'package:mineral/core/utils/enterprise_time.dart';
@@ -69,7 +70,7 @@ class _ExecutorProfileScreenState extends State<ExecutorProfileScreen> {
     if (value == 'custom') {
       final now = enterpriseTime(store.now);
       final today = DateTime(now.year, now.month, now.day);
-      final range = await showDateRangePicker(
+      final range = await showAppDateRangePicker(
         context: context,
         firstDate: DateTime(2000),
         lastDate: today,
@@ -102,14 +103,9 @@ class _ExecutorProfileScreenState extends State<ExecutorProfileScreen> {
 
   Future<void> _showPeriodPicker() async {
     final s = strings(context);
-    final selected = await showModalBottomSheet<String>(
+    final selected = await showAppBottomSheet<String>(
       context: context,
       isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
       builder: (sheetContext) => SafeArea(
         top: false,
         child: Padding(
@@ -399,14 +395,9 @@ class _ExecutorProfileScreenState extends State<ExecutorProfileScreen> {
   }
 
   Future<void> _showRating(BuildContext context, ExecutorRating rating) =>
-      showModalBottomSheet<void>(
+      showAppBottomSheet<void>(
         context: context,
         isScrollControlled: true,
-        showDragHandle: true,
-        backgroundColor: const Color(0xFFF4F7FB),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
         builder: (sheetContext) => SafeArea(
           top: false,
           child: ConstrainedBox(

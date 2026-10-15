@@ -203,59 +203,75 @@ class _ExecutorOrderScreenState extends State<ExecutorOrderScreen> {
                           padding: EdgeInsets.only(bottom: 12),
                           child: LinearProgressIndicator(),
                         ),
-                      FilledButton(
-                        onPressed: sending
-                            ? null
-                            : () async {
-                                if (!key.currentState!.validate()) return;
-                                updateSheet(() {
-                                  sending = true;
-                                  serverError = null;
-                                });
-                                try {
-                                  final success = await _change(
-                                    context,
-                                    status,
-                                    reason: controller.text.trim(),
-                                    reasonForm: true,
-                                  );
-                                  if (!sheetContext.mounted) return;
-                                  updateSheet(() => sending = false);
-                                  if (success ||
-                                      order.accessErrorStatus != null ||
-                                      !availableExecutorActions(
-                                        order,
-                                        employeeId,
-                                      ).contains(
-                                        status == OrderStatus.rejected
-                                            ? 'REJECT'
-                                            : 'PAUSE',
-                                      )) {
-                                    Navigator.pop(sheetContext);
-                                  }
-                                } on ApiException catch (error) {
-                                  if (sheetContext.mounted) {
-                                    updateSheet(() {
-                                      sending = false;
-                                      serverError =
-                                          error.fieldMessage('comment') ??
-                                          (error.message.isNotEmpty
-                                              ? uiText(context, error.message)
-                                              : uiText(
-                                                  sheetContext,
-                                                  'Укажите причину',
-                                                ));
-                                    });
-                                  }
-                                }
-                              },
-                        child: Text(uiText(sheetContext, 'Подтвердить')),
-                      ),
-                      TextButton(
-                        onPressed: sending
-                            ? null
-                            : () => Navigator.pop(sheetContext),
-                        child: Text(uiText(sheetContext, 'Отмена')),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.red,
+                                side: BorderSide(color: Colors.red),
+                              ),
+                              onPressed: sending
+                                  ? null
+                                  : () => Navigator.pop(sheetContext),
+                              child: Text(uiText(sheetContext, 'Отмена')),
+                            ),
+                          ),
+                          SizedBox(width: 5),
+                          Expanded(
+                            child: FilledButton(
+                              onPressed: sending
+                                  ? null
+                                  : () async {
+                                      if (!key.currentState!.validate()) return;
+                                      updateSheet(() {
+                                        sending = true;
+                                        serverError = null;
+                                      });
+                                      try {
+                                        final success = await _change(
+                                          context,
+                                          status,
+                                          reason: controller.text.trim(),
+                                          reasonForm: true,
+                                        );
+                                        if (!sheetContext.mounted) return;
+                                        updateSheet(() => sending = false);
+                                        if (success ||
+                                            order.accessErrorStatus != null ||
+                                            !availableExecutorActions(
+                                              order,
+                                              employeeId,
+                                            ).contains(
+                                              status == OrderStatus.rejected
+                                                  ? 'REJECT'
+                                                  : 'PAUSE',
+                                            )) {
+                                          Navigator.pop(sheetContext);
+                                        }
+                                      } on ApiException catch (error) {
+                                        if (sheetContext.mounted) {
+                                          updateSheet(() {
+                                            sending = false;
+                                            serverError =
+                                                error.fieldMessage('comment') ??
+                                                (error.message.isNotEmpty
+                                                    ? uiText(
+                                                        context,
+                                                        error.message,
+                                                      )
+                                                    : uiText(
+                                                        sheetContext,
+                                                        'Укажите причину',
+                                                      ));
+                                          });
+                                        }
+                                      }
+                                    },
+                              child: Text(uiText(sheetContext, 'Подтвердить')),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

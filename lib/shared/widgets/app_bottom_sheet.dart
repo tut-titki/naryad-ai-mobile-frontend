@@ -78,11 +78,13 @@ class AppSheetContent extends StatelessWidget {
             Flexible(child: SingleChildScrollView(child: content)),
             if (actions.isNotEmpty) ...[
               const SizedBox(height: 24),
-              OverflowBar(
-                alignment: MainAxisAlignment.end,
-                spacing: 12,
-                overflowSpacing: 8,
-                children: actions,
+              Row(
+                children: [
+                  for (var i = 0; i < actions.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 12),
+                    Expanded(child: actions[i]),
+                  ],
+                ],
               ),
             ],
           ],

@@ -33,9 +33,15 @@ class _WorkTimerState extends State<WorkTimer> {
   @override
   Widget build(BuildContext context) {
     final duration = widget.order.workDuration(widget.store.now);
-    String digits(int value) => value.toString().padLeft(2, '0');
-    final time =
-        '${digits(duration.inHours)}:${digits(duration.inMinutes.remainder(60))}:${digits(duration.inSeconds.remainder(60))}';
+    final days = duration.inDays;
+    final hours = duration.inHours.remainder(24);
+    final minutes = duration.inMinutes.remainder(60);
+    final kk = Localizations.localeOf(context).languageCode == 'kk';
+    final time = [
+      if (days > 0) '$days ${kk ? 'күн' : 'д'}',
+      if (days > 0 || hours > 0) '$hours ${kk ? 'сағ' : 'ч'}',
+      '$minutes мин',
+    ].join(' ');
     return Semantics(
       label: strings(context).workTimeValue(time),
       child: Text(

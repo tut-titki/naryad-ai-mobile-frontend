@@ -487,7 +487,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             ),
           ),
           actions: [
-            TextButton(
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red,
+                side: BorderSide(color: Colors.red, width: 1),
+              ),
               onPressed: () {
                 Navigator.pop(dialogContext);
               },

@@ -4,6 +4,41 @@ import 'package:mineral/features/reports/widgets/report_content.dart';
 import 'package:mineral/l10n/app_localizations.dart';
 
 void main() {
+  testWidgets(
+    'material report localizes known catalog labels and keeps unknown data',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('kk'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const Scaffold(
+            body: SingleChildScrollView(
+              child: ReportContent(
+                report: 'materials',
+                data: [
+                  {
+                    'material': 'Масло индустриальное И-40А',
+                    'unit': 'л',
+                    'quantity': 2,
+                    'group': {'name': 'Участок с пользовательским названием'},
+                  },
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final s = AppLocalizations.of(tester.element(find.byType(ReportContent)));
+      expect(find.text(s.industrialOilMaterial), findsOneWidget);
+      expect(find.text('2 ${s.literUnit}'), findsOneWidget);
+      expect(find.text('Участок с пользовательским названием'), findsOneWidget);
+      expect(find.text('Масло индустриальное И-40А'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final report in [
     'shift',
     'materials',

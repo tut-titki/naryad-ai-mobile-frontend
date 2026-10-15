@@ -918,7 +918,7 @@ class _CompletionScreenState extends State<CompletionScreen> {
                               .toList(),
                           onChanged: (v) => _edit(() => _fault = v),
                           validator: (v) => v == null
-                              ? uiText(context, 'Выберите код')
+                              ? strings(context).selectFaultCode
                               : null,
                         ),
                         const SizedBox(height: 16),

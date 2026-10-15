@@ -3,6 +3,7 @@ import 'package:mineral/shared/models/models.dart';
 import 'package:mineral/features/orders/screens/order_screens.dart';
 import 'helpers/backend_api_fixture.dart';
 import 'package:flutter/material.dart';
+import 'package:mineral/features/assistant/screens/ai_screen.dart';
 import 'helpers/localization_assertions.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mineral/l10n/app_localizations.dart';
@@ -16,6 +17,43 @@ class LocalizationPhotoPicker extends PhotoPickerService {
 }
 
 void main() {
+  for (final language in ['ru', 'kk']) {
+    testWidgets(
+      'AI control headings and assistant labels localize in $language',
+      (tester) async {
+        final api = testApi();
+        addTearDown(api.dispose);
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: Locale(language),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: AiScreen(api: api, onOrder: (_) {}),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final context = tester.element(find.byType(AiScreen));
+        for (final label in [
+          'ИИ-контроль',
+          'Контроль нарядов',
+          'Мониторинг оборудования',
+          'Цифровой помощник',
+          'Задайте вопрос по производству',
+        ]) {
+          final translated = uiText(context, label);
+          if (language == 'kk') expect(translated, isNot(label));
+          expect(find.text(translated), findsOneWidget);
+        }
+        if (language == 'kk') checkNoRussianLabels(tester);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets('all ARB-backed labels and composed values translate to Kazakh', (
     tester,
   ) async {

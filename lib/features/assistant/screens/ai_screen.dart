@@ -191,9 +191,9 @@ class _AiScreenState extends State<AiScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'ИИ-контроль',
-                  style: TextStyle(
+                Text(
+                  uiText(context, 'ИИ-контроль'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
@@ -339,22 +339,22 @@ class _AiScreenState extends State<AiScreen> {
                   child: const Icon(LucideIcons.bot, color: _blue, size: 20),
                 ),
                 const SizedBox(width: 11),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Цифровой помощник',
-                        style: TextStyle(
+                        uiText(context, 'Цифровой помощник'),
+                        style: const TextStyle(
                           color: _ink,
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      SizedBox(height: 3),
+                      const SizedBox(height: 3),
                       Text(
-                        'Задайте вопрос по производству',
-                        style: TextStyle(color: _muted, fontSize: 11),
+                        uiText(context, 'Задайте вопрос по производству'),
+                        style: const TextStyle(color: _muted, fontSize: 11),
                       ),
                     ],
                   ),
@@ -575,7 +575,7 @@ class _AiScreenState extends State<AiScreen> {
         const SizedBox(width: 9),
         Expanded(
           child: Text(
-            title,
+            uiText(context, title),
             style: const TextStyle(
               color: _ink,
               fontSize: 17,
@@ -602,7 +602,7 @@ class _AiScreenState extends State<AiScreen> {
         const SizedBox(width: 10),
         Expanded(
           child: Text(
-            title,
+            uiText(context, title),
             style: const TextStyle(
               color: _ink,
               fontSize: 14,

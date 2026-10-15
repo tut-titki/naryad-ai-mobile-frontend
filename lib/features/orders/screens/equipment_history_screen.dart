@@ -5,6 +5,7 @@ import '../../../core/api/backend_document.dart';
 import '../../../shared/widgets/backend_section.dart';
 import '../../../shared/widgets/backend_refresh_view.dart';
 import '../../../shared/widgets/ui.dart';
+import '../../../l10n/ui_localization.dart';
 import 'order_detail_screen.dart';
 
 class EquipmentHistoryScreen extends StatelessWidget {
@@ -51,7 +52,7 @@ class EquipmentHistoryScreen extends StatelessWidget {
               if (equipment['inventoryNumber'] != null)
                 Text('${equipment['inventoryNumber']}'),
               if (equipment['area'] is Map)
-                Text('${equipment['area']['name'] ?? '—'}'),
+                Text(uiText(context, '${equipment['area']['name'] ?? '—'}')),
               const SizedBox(height: 20),
               if (orders.isEmpty)
                 Text(

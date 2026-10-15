@@ -298,10 +298,11 @@ class _MasterShellState extends State<MasterShell> {
                       ],
                     ),
                     actions: [
-                      EquipmentQrButton(
-                        api: widget.api,
-                        color: page == 0 ? null : Colors.white,
-                      ),
+                      if (page == 0 || page == 1)
+                        EquipmentQrButton(
+                          api: widget.api,
+                          color: page == 0 ? null : Colors.white,
+                        ),
                       if (page == 2) _exportAction(context),
                       AppNotificationsButton(
                         onPressed: openNotifications,
@@ -494,12 +495,13 @@ class _MasterShellState extends State<MasterShell> {
                               const SizedBox(width: 14),
 
                               if (page == 2) _exportAction(context),
-                              EquipmentQrButton(
-                                api: widget.api,
-                                color: (page == 4 || page == 1)
-                                    ? Colors.white
-                                    : null,
-                              ),
+                              if (page == 0 || page == 1)
+                                EquipmentQrButton(
+                                  api: widget.api,
+                                  color: (page == 4 || page == 1)
+                                      ? Colors.white
+                                      : null,
+                                ),
 
                               AppNotificationsButton(
                                 onPressed: openNotifications,

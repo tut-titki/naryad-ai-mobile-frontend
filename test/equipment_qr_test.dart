@@ -71,6 +71,14 @@ void main() {
       find.ancestor(of: qr, matching: find.byType(OrdersScreen)),
       findsNothing,
     );
+    for (final index in [2, 3, 4]) {
+      await tester.tap(find.byType(NavigationDestination).at(index));
+      await tester.pumpAndSettle();
+      expect(qr, findsNothing);
+    }
+    await tester.tap(find.byType(NavigationDestination).at(0));
+    await tester.pumpAndSettle();
+    expect(qr, findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
